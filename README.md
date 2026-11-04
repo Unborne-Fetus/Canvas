@@ -61,6 +61,14 @@ Then visit http://localhost:8000.
 On macOS, use Command instead of Ctrl.
 
 
+## Canvas AI Studio (design in progress)
+
+The implementation blueprint for a **real trained 64×64 sprite AI**, a user-expandable reference library, model training, and non-destructive editor integration is in [Canvas AI Studio architecture](docs/AI_STUDIO_ARCHITECTURE.md). The [machine-readable API contracts](ai/contracts/README.md) and [contract smoke tests](tests/ai-contracts.mjs) are also committed.
+
+**Current status:** design and contracts are in place. The trained model, training service, reference importer, AI Studio interface, and in-app generation are **not implemented yet**. The present **AI Live ✦** feature below is a separate GitHub-backed ChatGPT sync mechanism.
+
+The planned importer can discover sprites in a local Pokeemerald Expansion asset collection, but artwork is not bundled or automatically authorized for redistribution/training; each training dataset must have verified permissions.
+
 ## AI Live editing with ChatGPT
 
 Canvas supports **GitHub-backed AI Live** mode for sprites in this public repository. You no longer need to download or import a project every time ChatGPT edits it.
