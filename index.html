@@ -127,13 +127,17 @@
     <select id="refsCategory" aria-label="Reference category"><option value="all">All sprites</option><option value="pokemon">Pokémon</option><option value="trainer">Trainers</option></select>
     <button class="btn small" id="refsReload">Refresh</button>
   </div>
-  <p class="hint" id="refsStatus" role="status">Connect the local reference library to browse imported sheets.</p>
+  <div class="refs-controls">
+    <input id="refsSource" placeholder="Optional: path to YOUR own Pokeemerald Expansion checkout" aria-label="Local Pokeemerald Expansion repository path">
+    <button class="btn small" id="refsScan" type="button">Index my sprite folder</button>
+  </div>
+  <p class="hint" id="refsStatus" role="status">An imported reference library is optional. You can generate from prompts or uploaded PNGs without one.</p>
   <div class="refs-grid" id="refsGrid"></div>
   <div class="refs-footer"><button class="btn small" id="refsPrev">← Previous</button><span class="small-label" id="refsPage">Page 1</span><button class="btn small" id="refsNext">Next →</button></div>
 </dialog>
 <dialog class="ai-dialog" id="aiStudioDialog" aria-label="Local AI Studio">
   <div class="refs-head"><div><h2>AI Studio · Local GPU generation</h2>
-    <p class="hint">Reference-guided inference on your PC. References are not used to train model weights. First use downloads a model.</p></div>
+    <p class="hint">This feature runs on <strong>the computer using Canvas</strong> through an optional local AI companion. It does not connect to the creator's PC. First use downloads a model.</p></div>
     <button class="btn" id="aiStudioClose">Close</button></div>
   <label for="aiPrompt" class="small-label">Describe your creature or sprite edit</label>
   <textarea id="aiPrompt" maxlength="1200" placeholder="A fast aerodynamic Mega Scizor Y with longer pincers and razor-like wings">A fast, aerodynamic Mega Evolution of Scizor with longer pincers and razor-like wings, 64x64 pixel art creature sprite</textarea>
@@ -146,12 +150,14 @@
     <label>Upload personal reference PNGs<input id="aiUploads" type="file" accept="image/png" multiple></label>
   </div>
   <label><input id="aiUseCurrent" type="checkbox"> Use current Canvas drawing as the main reference</label>
+  <label><input id="aiAllowCpu" type="checkbox"> Allow slow CPU generation on computers without a supported GPU (may take considerable time and RAM)</label>
   <p id="aiRefStatus" class="ai-selected">Selected references: none. In References ▦ choose “Use for AI”.</p>
   <div class="ai-actions">
     <button class="btn" id="aiClearRefs">Clear selected references</button>
-    <button class="btn primary" id="aiGenerate">Generate on my PC</button>
+    <button class="btn primary" id="aiGenerate" disabled>Generate on this device</button>
   </div>
-  <p id="aiProgress" class="hint" role="status">Checking local AI service…</p>
+  <p id="aiProgress" class="hint" role="status">Checking the AI installed on this device…</p>
+  <p class="hint">Using the public website? Install and run Canvas AI on <strong>your own computer</strong>, then open its local Canvas page. <a href="https://github.com/Unborne-Fetus/Canvas">Get the per-device setup from GitHub</a>. Browser-only GPU inference is not implemented yet.</p>
   <div class="ai-result-list" id="aiResults"></div>
 </dialog>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -471,12 +477,23 @@ function aiPollJob(id){
   }).catch(function(e){aiBusy=false;el('aiGenerate').disabled=false;aiSetStatus(e.message);});
 }
 function aiHealth(){
+  el('aiGenerate').disabled=true;
   fetch('/api/v1/models',{cache:'no-store'}).then(function(r){if(!r.ok)throw Error('offline');return r.json();}).then(function(r){
-    if(!r.device.installed)aiSetStatus('Local AI dependencies not installed. Run setup_canvas_ai.bat first.');
-    else if(!r.device.cuda)aiSetStatus('PyTorch installed but CUDA GPU unavailable. Configure NVIDIA CUDA before generating.');
-    else if(!r.device.model_available)aiSetStatus('Diffusers not installed; rerun local AI setup.');
-    else aiSetStatus('Ready: '+r.device.device+' · selected model downloads on first Generate.');
-  }).catch(function(){aiSetStatus('Open Canvas at http://127.0.0.1:8765 using the local launcher to generate.');});
+    if(!r.device.installed){
+      aiSetStatus('Local AI dependencies missing on this device. Run setup_canvas_ai.bat or setup_canvas_ai.sh.');
+    }else if(!r.device.model_available){
+      aiSetStatus('Diffusers is missing on this device. Re-run local setup.');
+    }else{
+      el('aiGenerate').disabled=aiBusy;
+      if(r.device.backend==='cpu'){
+        aiSetStatus('CPU-only device detected. Enable "Allow slow CPU generation" if you want to try; model requirements may exceed available RAM.');
+      }else{
+        aiSetStatus('Ready on THIS device: '+r.device.device+' · pretrained model downloads on first Generate.');
+      }
+    }
+  }).catch(function(){
+    aiSetStatus('This page has no local AI service. On each computer, install Canvas AI and open http://127.0.0.1:8765. A public website cannot silently install an AI engine.');
+  });
 }
 function aiGenerate(){
   if(aiBusy)return;
@@ -498,7 +515,7 @@ function aiGenerate(){
     return fetch('/api/v1/generations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
       prompt:prompt,model:el('aiModel').value,count:Number(el('aiCount').value),
       strength:Number(el('aiStrength').value),colors:Number(el('aiColors').value),
-      seed:rawSeed===''?null:Number(rawSeed),
+      seed:rawSeed===''?null:Number(rawSeed),allow_cpu:el('aiAllowCpu').checked,
       base_image:base,user_images:data,reference_ids:aiChosen.map(function(x){return{id:x.id,frame:x.frame};})
     })});
   }).then(function(r){return r.json().then(function(data){if(!r.ok)throw Error(data.error||'Local generator is unavailable');return data;});})
@@ -511,6 +528,18 @@ attach('aiClearRefs','click',function(){aiChosen=[];aiRefsUpdate();});
 attach('aiGenerate','click',aiGenerate);
 attach('refsBtn','click',function(){el('refsDialog').showModal();refsOffset=0;refsLoad();});
 attach('refsClose','click',function(){el('refsDialog').close();refsReq++;});
+function refsScanFolder(){
+  var source=el('refsSource').value.trim();
+  if(!source){el('refsStatus').textContent='Enter your own Pokeemerald Expansion repository folder, or use AI without a library.';return;}
+  el('refsScan').disabled=true;
+  el('refsStatus').textContent='Indexing this computer’s Pokémon and trainer sheets; original files stay where they are…';
+  fetch('/api/v1/references/scan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({source:source})})
+    .then(function(resp){return resp.json().then(function(body){if(!resp.ok)throw Error(body.error||'Import failed');return body;});})
+    .then(function(result){aiChosen=[];aiRefsUpdate();refsOffset=0;refsLoad();toast('Indexed '+result.total+' image sheets on this computer');})
+    .catch(function(error){el('refsStatus').textContent='Could not index local folder: '+error.message;})
+    .finally(function(){el('refsScan').disabled=false;});
+}
+attach('refsScan','click',refsScanFolder);
 attach('refsReload','click',refsLoad);
 attach('refsQuery','input',function(){clearTimeout(refsSearchTimer);refsSearchTimer=setTimeout(function(){refsOffset=0;refsLoad();},220);});
 attach('refsCategory','change',function(){refsOffset=0;refsLoad();});
