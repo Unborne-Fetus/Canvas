@@ -69,21 +69,19 @@ The implementation blueprint for a **real trained 64×64 sprite AI**, a user-exp
 
 The planned importer can discover sprites in a local Pokeemerald Expansion asset collection, but artwork is not bundled or automatically authorized for redistribution/training; each training dataset must have verified permissions.
 
-## Pokémon and trainer reference library (local)
+## Local AI Studio — every user's own computer
 
-Canvas now includes a **References ▦** browser when launched with its local Python companion. A recursive importer indexes all PNG sheets under both `graphics/pokemon` and `graphics/trainers` from an existing Pokeemerald Expansion/Brisk Emerald checkout **without copying artwork to this public repository**. Search species/trainers, browse frames of sprite sheets, and click **Add frame** to add a non-destructive editable Canvas layer.
+Canvas AI is **not connected to the developer's PC**. Each person runs their own optional local AI companion, which detects **that computer's** hardware and uses its GPU where supported (NVIDIA CUDA or Apple MPS), with a separately approved slow CPU fallback. It keeps their uploads, cached models, and generated art on that device.
 
-For Windows, clone this repo locally and run **`launch_canvas_references.bat`**. The default source is `C:\ROM Hacks\Pokemon Brisk Emerald`; pass a different source repository path as the first argument if needed. Then open **http://127.0.0.1:8765** (not the GitHub Pages site) to browse locally indexed sprites. See [Reference Library Guide](docs/REFERENCE_LIBRARY.md).
+**Windows:** download/clone Canvas and double-click `launch_canvas_ai.bat`. On first launch it runs the one-time installer, which requires Python 3.11. Choose **AI Studio ✦** in the local editor at `http://127.0.0.1:8765`.
 
-**No actual AI model training is performed during import.** Permissions for model training remain unreviewed and disabled by default because Pokémon and community sprites have different rights holders.
+**macOS/Linux:** use `bash setup_canvas_ai.sh` and `bash launch_canvas_ai.sh` (Python 3.11 and compatible hardware required). Apple MPS integration is implemented but still needs real Mac testing.
 
-## AI Studio: local PC image generation (V1)
+**Pokémon and trainer references are optional.** With **References ▦ → Index my sprite folder**, each user can enter the path to *their own* expansion repository; unlike the original development setup, **nothing is hardcoded to one PC or path**. Without an Expansion checkout they can still generate from a prompt, their own PNG files, or the current Canvas art.
 
-Canvas now has an optional **AI Studio ✦** dialog for GPU-backed 64×64 image generation, **without a paid API**. The optional local service uses the user's own computer, supports a text prompt, selected expansion references from **References ▦**, up to four user-uploaded PNGs, and current Canvas pixels as an image-to-image starting point. Results can be inserted as **new undoable editable layers**.
+**The public GitHub Pages website remains a drawing editor.** The current general diffusion models are too large for this site's existing browser-only code; it cannot silently install a local model or directly use a visitor's GPU. The local companion serves its own Canvas page instead. A true WebGPU/browser-only generator would be a separate model/runtime implementation.
 
-**On Windows:** run `setup_canvas_ai.bat` once (installs Python 3.11 CUDA PyTorch and Diffusers), then run `launch_canvas_ai.bat` to open `http://127.0.0.1:8765`. The selected pretrained model downloads only on the first Generate click. Learn about limitations, privacy, optional models, and setup in [Local Image AI Guide](docs/LOCAL_IMAGE_AI.md).
-
-The V1 model is a general pretrained diffusion model, **not** a Pokémon-trained model. References serve as input images (with an optional contact strip), **not fine-tuning data**. Outputs will require quality review. No proprietary Pokémon artwork, model weights, or user uploads are published to this repo.
+This V1 uses a pretrained general model and reference-guided image-to-image generation, **not a Pokémon-specific fine-tuned model**. It does not ship or automatically train on Expansion art. See [per-device AI setup](docs/LOCAL_IMAGE_AI.md) and [reference library](docs/REFERENCE_LIBRARY.md).
 
 ## AI Live editing with ChatGPT
 
