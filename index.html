@@ -14,6 +14,10 @@
 @media(max-width:850px){.workspace{grid-template-columns:1fr 250px}.sidebar.left{grid-column:1/-1;grid-row:1;display:block;border-right:0;border-bottom:1px solid var(--border);overflow:visible;padding:12px 16px}.sidebar.left .section-title{margin-bottom:7px}.sidebar.left .tools{display:flex;overflow-x:auto;gap:6px}.sidebar.left .tool{flex:0 0 auto}.sidebar.left .tool-options,.sidebar.left .keyboard-help{display:none}.editor{grid-column:1;grid-row:2}.sidebar.right{grid-column:2;grid-row:2}.canvas-viewport{min-height:420px;padding:25px}.topbar{height:auto;min-height:72px;padding:12px 15px}}
 @media(max-width:620px){.topbar{justify-content:center}.brand{min-width:0}.top-actions{justify-content:center}.workspace{display:flex;flex-direction:column}.sidebar.left{order:0}.editor{order:1;height:590px;flex:none}.sidebar.right{order:2;border-left:0;border-top:1px solid var(--border);display:grid;grid-template-columns:1fr 1fr;gap:16px}.canvas-viewport{min-height:0}.editor-foot{height:auto;min-height:60px}.sidebar.right>.divider{display:none}.sidebar.right section:nth-of-type(1){grid-column:1}.sidebar.right section:nth-of-type(2){grid-column:1}.sidebar.right section:nth-of-type(3){grid-column:2;grid-row:1/3}.palette-grid{grid-template-columns:repeat(8,1fr)}.preview-wrap{flex-wrap:wrap}.status{font-size:11px}}
 @media(max-width:400px){.sidebar.right{display:flex}.btn{padding:7px 9px;font-size:12px}.editor-head{padding:0 9px}.editor-foot{padding:8px 9px}}
+
+.live-bar{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:9px;padding:8px 15px;background:#222638;border-bottom:1px solid #515a78;font-size:12px}
+.live-bar strong{color:#adf1d5}.live-bar .live-status{flex:1;min-width:210px;color:#d9ddeb}
+.live-bar .btn{padding:5px 9px;font-size:12px}.live-bar .warning{color:#ffe2a2}
 </style>
 </head>
 <body>
@@ -25,10 +29,18 @@
     <button class="btn ghost" id="newBtn" title="New project">New</button>
     <button class="btn ghost" id="openBtn" title="Import PNG or Canvas project (Ctrl+O)">Import</button>
     <button class="btn ghost" id="saveBtn" title="Save editable project (Ctrl+S)">Save project</button>
-    <button class="btn ghost" id="aiBtn" title="Download an editable sprite project to share with ChatGPT">Edit with AI ✦</button>
+    <button class="btn ghost" id="aiBtn" title="Connect Canvas to a GitHub-backed live AI sprite">AI Live ✦</button>
     <button class="btn primary" id="exportBtn" title="Export 64×64 PNG">Export PNG ↗</button>
   </div>
 </header>
+<div id="liveBar" class="live-bar hidden" role="region" aria-label="Live AI sprite sync">
+  <strong>AI Live</strong><span id="liveStatus" class="live-status">Connecting…</span>
+  <button class="btn small hidden" id="liveApply" title="Load the AI update, keeping a browser backup">Load update</button>
+  <button class="btn small" id="liveRefresh">Refresh</button>
+  <button class="btn small" id="liveCopy">Copy AI prompt</button>
+  <button class="btn small hidden" id="liveRestore">Restore backup</button>
+  <button class="btn small" id="liveDisconnect">Disconnect</button>
+</div>
 <main class="workspace">
 <aside class="sidebar left" aria-label="Drawing tools">
 <section><h2 class="section-title">Draw tools</h2><div class="tools" id="tools">
@@ -234,7 +246,7 @@ attach('confirmNew','click',function(){setName(el('newName').value.trim()||'Unti
 attach('openBtn','click',function(){el('fileInput').click();});
 attach('fileInput','change',function(e){importFile(e.target.files[0]);e.target.value='';});
 attach('saveBtn','click',saveProject);
-attach('aiBtn','click',function(){saveProject();toast('Attach the downloaded .canvas.json file in ChatGPT and ask Canvas Sprite Editor to edit it');});
+attach('aiBtn','click',function(){if(livePath){copyLivePrompt();return;}var path=prompt('GitHub sprite path to watch (create one in ChatGPT first):','sprites/'+basename()+'.canvas.json');if(path)connectLive(path.trim(),false);});
 attach('exportBtn','click',function(){exportPng(1);});attach('exportBigBtn','click',function(){exportPng(8);});
 var viewport=el('viewport');viewport.addEventListener('dragover',function(e){e.preventDefault();viewport.classList.add('dragover');});viewport.addEventListener('dragleave',function(){viewport.classList.remove('dragover');});viewport.addEventListener('drop',function(e){e.preventDefault();viewport.classList.remove('dragover');importFile(e.dataTransfer.files[0]);});
 window.addEventListener('keydown',function(e){var editable=e.target.closest('input,textarea,select,[contenteditable]');if(editable)return;var mod=e.ctrlKey||e.metaKey,k=e.key.toLowerCase();if(mod){if(k==='a'){e.preventDefault();selection={x:0,y:0,w:SIZE,h:SIZE};drawSelection();return;}if(k==='z'){e.preventDefault();e.shiftKey?redo():undo();}else if(k==='y'){e.preventDefault();redo();}else if(k==='s'){e.preventDefault();saveProject();}else if(k==='o'){e.preventDefault();el('fileInput').click();}else if(k==='c'){if(selection){e.preventDefault();copySelection(false);}}else if(k==='x'){if(selection){e.preventDefault();copySelection(true);}}else if(k==='v'){if(clipboard){e.preventDefault();pasteSelection();}}return;}
@@ -242,6 +254,104 @@ window.addEventListener('keydown',function(e){var editable=e.target.closest('inp
 window.addEventListener('keyup',function(e){if(e.code==='Space')spacePressed=false;});
 window.addEventListener('blur',function(){spacePressed=false;});
 try{var stored=localStorage.getItem('canvas-fakemon-v1');if(stored)fromProject(JSON.parse(stored));else initial();}catch(e){initial();toast('Started a fresh project (saved project could not be restored)');}
+
+// GitHub-backed live preview: ChatGPT edits the shared repository project, this tab
+// receives updates. The editor remains local-first; there is no browser-side GitHub write.
+var livePath='',liveReceived='',liveDirty=false,liveLoading=false,livePending=null;
+var liveFirst=true,livePollTimer=0,liveBusy=false,liveEpoch=0;
+var baseScheduleSave=scheduleSave;
+scheduleSave=function(){
+  if(livePath&&!liveLoading){liveDirty=true;liveSetStatus('Local changes are saved on this device only; AI updates will not overwrite them.');}
+  baseScheduleSave();
+};
+function liveValidPath(path){
+  return typeof path==='string'&&path.length<=180&&/^sprites\/(?:[a-zA-Z0-9_-]+\/)*[a-zA-Z0-9_-]+\.canvas\.json$/.test(path);
+}
+function liveSetStatus(message){
+  el('liveStatus').textContent=message;
+  el('liveBar').classList.remove('hidden');
+  el('liveApply').classList.toggle('hidden',!livePending);
+  try{el('liveRestore').classList.toggle('hidden',!localStorage.getItem('canvas-live-backup:'+livePath));}catch(e){}
+}
+function liveHasArt(){
+  return layers.some(function(l){for(var i=3;i<l.pixels.length;i+=4){if(l.pixels[i])return true;}return false;});
+}
+function liveBackup(){
+  try{localStorage.setItem('canvas-live-backup:'+livePath,JSON.stringify(toProject()));}catch(e){toast('Local backup unavailable: save your project before loading');return false;}
+  return true;
+}
+function liveApplyProject(data,raw){
+  try{
+    if(liveHasArt()&&!liveBackup()){livePending={data:data,raw:raw};liveSetStatus('Backup failed. Save locally before loading the AI update.');return;}
+    liveLoading=true;
+    fromProject(data); // validates dimensions and every layer before replacing the editor
+    liveReceived=raw;livePending=null;liveDirty=false;liveFirst=false;
+    liveSetStatus('AI update applied: '+livePath+' · browser edits stay local');
+    toast('New AI sprite is now on your canvas');
+  }catch(e){liveSetStatus('AI project was rejected: '+e.message);}
+  finally{liveLoading=false;}
+}
+function livePoll(){
+  if(!livePath||liveBusy||document.hidden)return;
+  liveBusy=true;
+  var epoch=liveEpoch,path=livePath;
+  // Public repository only. No GitHub credentials are stored or transmitted.
+  var url='https://raw.githubusercontent.com/Unborne-Fetus/Canvas/main/'+path.split('/').map(encodeURIComponent).join('/')+'?live='+Date.now();
+  fetch(url,{cache:'no-store',mode:'cors'}).then(function(resp){
+    if(!resp.ok)throw Error('GitHub returned '+resp.status+(resp.status===404?' (ask ChatGPT to create this sprite in sprites/)':''));
+    return resp.text();
+  }).then(function(raw){
+    if(epoch!==liveEpoch||path!==livePath||raw===liveReceived)return;
+    var data=JSON.parse(raw);
+    if(!data||data.format!=='canvas-fakemon'||data.version!==1||data.width!==64||data.height!==64||!Array.isArray(data.layers)||data.layers.length<1||data.layers.length>24)throw Error('Not a valid 64×64 Canvas project');
+    // Do not automatically replace pre-existing artwork or browser-side edits.
+    if(liveDirty||(liveFirst&&liveHasArt())){
+      livePending={data:data,raw:raw};
+      liveReceived=raw;
+      liveSetStatus('New AI version available. Select Load update to replace local artwork (with a backup).');
+    }else{
+      liveApplyProject(data,raw);
+    }
+  }).catch(function(err){
+    if(epoch===liveEpoch)liveSetStatus('Sync check failed: '+err.message+'. Retry or check repository access.');
+  }).finally(function(){liveBusy=false;});
+}
+function connectLive(path,fromUrl){
+  if(!liveValidPath(path)){toast('Use a path like sprites/Glowlotl.canvas.json');return;}
+  if(livePath&&liveDirty&&path!==livePath&&!confirm('Your unsynced browser edits will remain local. Switch AI projects?'))return;
+  liveEpoch++;livePath=path;liveReceived='';livePending=null;liveDirty=false;liveFirst=true;
+  clearInterval(livePollTimer);
+  var page=new URL(location.href);page.searchParams.set('live',path);history.replaceState(null,'',page.href);
+  liveSetStatus('Watching '+path+' on GitHub (read-only; browser drawings are local)');
+  livePoll();
+  livePollTimer=setInterval(livePoll,12000);
+  if(!fromUrl)toast('Live mode connected. Ask Canvas Sprite Editor to edit '+path);
+}
+function copyLivePrompt(){
+  if(!livePath){toast('Connect a live sprite first');return;}
+  var message='@Canvas Sprite Editor: Edit my live Canvas Fakémon at Unborne-Fetus/Canvas/'+livePath+'. Read the latest project from GitHub, preserve layers, and commit your changes to main. I have Canvas open with ?live='+encodeURIComponent(livePath)+' and want edits to appear automatically without downloading or importing files.';
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(message).then(function(){toast('AI edit prompt copied');}).catch(function(){prompt('Copy this AI edit request:',message);});
+  }else prompt('Copy this AI edit request:',message);
+}
+attach('liveRefresh','click',livePoll);
+attach('liveCopy','click',copyLivePrompt);
+attach('liveApply','click',function(){if(livePending)liveApplyProject(livePending.data,livePending.raw);});
+attach('liveRestore','click',function(){
+  var saved;try{saved=localStorage.getItem('canvas-live-backup:'+livePath);}catch(e){}
+  if(!saved)return;
+  if(!confirm('Restore the previous browser draft? This will replace the current canvas.'))return;
+  try{fromProject(JSON.parse(saved));liveDirty=true;liveSetStatus('Restored browser draft (not uploaded to GitHub)');}catch(e){toast('Backup could not be restored');}
+});
+attach('liveDisconnect','click',function(){
+  liveEpoch++;clearInterval(livePollTimer);livePath='';livePending=null;liveReceived='';liveDirty=false;
+  el('liveBar').classList.add('hidden');
+  var page=new URL(location.href);page.searchParams.delete('live');history.replaceState(null,'',page.href);
+  toast('Disconnected; current sprite stays on this device');
+});
+document.addEventListener('visibilitychange',function(){if(!document.hidden)livePoll();});
+var requestedLive=new URLSearchParams(location.search).get('live');
+if(requestedLive)connectLive(requestedLive,true);
 setTool('pencil');updateColors();setZoom(10);
 })();
 </script>
