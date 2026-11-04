@@ -31,6 +31,7 @@ jobs:
           node tests/ai-contracts.mjs
           python tests/reference-library-smoke.py
           python tests/local-generator-smoke.py
+          python tests/per-device-smoke.py
       - name: Prepare static site
         run: |
           mkdir -p _site
