@@ -11,6 +11,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+from io import BytesIO
+from PIL import Image
 from local_generator import capabilities as ai_capabilities, models as ai_models, start_job as ai_start_job, job_status as ai_job_status
 import mimetypes
 import os
@@ -291,9 +293,17 @@ def serve(db_path: Path, site: Path, host: str, port: int) -> None:
                 if not any(candidate.is_relative_to(p) for p in allowed) or candidate.suffix.lower() != ".png":
                     return self.send_json({"error": "Access denied"}, 403)
                 try:
+                    # Serve indexed GBA sprites with their palette matte converted
+                    # to real PNG transparency; original source files stay untouched.
+                    with Image.open(candidate) as img:
+                        if img.mode == "P" and "transparency" not in img.info:
+                            img.info["transparency"] = img.getpixel((0,0))
+                            buffer = BytesIO()
+                            img.convert("RGBA").save(buffer,format="PNG")
+                            return self.send_bytes(buffer.getvalue(),"image/png")
                     return self.send_bytes(candidate.read_bytes(), "image/png")
-                except OSError:
-                    return self.send_json({"error": "Image source moved; rerun scan"}, 404)
+                except (OSError,ValueError):
+                    return self.send_json({"error": "Image source changed; rerun scan"}, 404)
             return self.send_json({"error": "Not found"}, 404)
 
         def log_message(self, fmt: str, *args: object) -> None:
