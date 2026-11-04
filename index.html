@@ -18,6 +18,21 @@
 .live-bar{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:9px;padding:8px 15px;background:#222638;border-bottom:1px solid #515a78;font-size:12px}
 .live-bar strong{color:#adf1d5}.live-bar .live-status{flex:1;min-width:210px;color:#d9ddeb}
 .live-bar .btn{padding:5px 9px;font-size:12px}.live-bar .warning{color:#ffe2a2}
+
+/* Local Pokémon + trainer reference catalogue */
+.refs-dialog{width:min(1100px,96vw);max-width:none;max-height:90vh;padding:17px 18px;overflow:auto}
+.refs-head{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:12px}
+.refs-controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.refs-controls input{flex:1;min-width:200px}.refs-controls select{background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px}
+.refs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(142px,1fr));gap:10px;padding:6px 0}
+.ref-card{min-width:0;display:flex;flex-direction:column;gap:7px;border:1px solid var(--border);border-radius:10px;padding:9px;background:var(--panel2)}
+.ref-picture{display:grid;place-items:center;height:118px;border:1px solid #4b4e63;border-radius:8px;background:#202536;overflow:hidden}
+.ref-picture canvas{width:100px;height:100px;max-width:100%;image-rendering:pixelated}
+.ref-name{font-size:12px;font-weight:700;overflow-wrap:anywhere}
+.ref-meta{font-size:11px;color:var(--muted);overflow-wrap:anywhere}
+.ref-buttons{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.ref-buttons button{font-size:11px;padding:4px 6px;min-width:26px}
+.refs-footer{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding-top:12px}
 </style>
 </head>
 <body>
@@ -30,6 +45,7 @@
     <button class="btn ghost" id="openBtn" title="Import PNG or Canvas project (Ctrl+O)">Import</button>
     <button class="btn ghost" id="saveBtn" title="Save editable project (Ctrl+S)">Save project</button>
     <button class="btn ghost" id="aiBtn" title="Connect Canvas to a GitHub-backed live AI sprite">AI Live ✦</button>
+    <button class="btn ghost" id="refsBtn" title="Browse local Pokémon and trainer sprite reference library">References <span aria-hidden="true">▦</span></button>
     <button class="btn primary" id="exportBtn" title="Export 64×64 PNG">Export PNG ↗</button>
   </div>
 </header>
@@ -87,6 +103,20 @@
 </div>
 <input id="fileInput" type="file" accept=".json,.png,image/png,image/*,application/json" class="hidden">
 <dialog id="newDialog"><h2>Start a fresh sprite?</h2><p>Your current sprite is autosaved in this browser, but starting over will replace it. Export the project first if you'd like to keep a separate copy.</p><label>Project name <input id="newName" class="hex-input" style="margin-top:7px" maxlength="60" value="Untitled sprite"></label><div class="dialog-actions"><button class="btn" id="cancelNew">Cancel</button><button class="btn primary" id="confirmNew">Create</button></div></dialog>
+<dialog class="refs-dialog" id="refsDialog" aria-label="Sprite reference library">
+  <div class="refs-head">
+    <div><h2 style="margin:0">Sprite Reference Library</h2><p class="hint">Pokémon + trainers · Original sprite sheets stay on your PC · Not automatically authorized for AI training</p></div>
+    <button class="btn" id="refsClose">Close</button>
+  </div>
+  <div class="refs-controls">
+    <input id="refsQuery" class="hex-input" placeholder="Search species, trainers, file types..." aria-label="Search sprite references">
+    <select id="refsCategory" aria-label="Reference category"><option value="all">All sprites</option><option value="pokemon">Pokémon</option><option value="trainer">Trainers</option></select>
+    <button class="btn small" id="refsReload">Refresh</button>
+  </div>
+  <p class="hint" id="refsStatus" role="status">Connect the local reference library to browse imported sheets.</p>
+  <div class="refs-grid" id="refsGrid"></div>
+  <div class="refs-footer"><button class="btn small" id="refsPrev">← Previous</button><span class="small-label" id="refsPage">Page 1</span><button class="btn small" id="refsNext">Next →</button></div>
+</dialog>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <script>
 (function(){
@@ -247,6 +277,98 @@ attach('openBtn','click',function(){el('fileInput').click();});
 attach('fileInput','change',function(e){importFile(e.target.files[0]);e.target.value='';});
 attach('saveBtn','click',saveProject);
 attach('aiBtn','click',function(){if(livePath){copyLivePrompt();return;}var path=prompt('GitHub sprite path to watch (create one in ChatGPT first):','sprites/'+basename()+'.canvas.json');if(path)connectLive(path.trim(),false);});
+
+var refsOffset=0,refsLimit=48,refsTotal=0,refsReq=0,refsSearchTimer=null;
+function refElement(tag,className,text){
+  var elmt=document.createElement(tag);
+  if(className)elmt.className=className;
+  if(text!==undefined)elmt.textContent=text;
+  return elmt;
+}
+function refDrawFrame(img,entry,index,canvas){
+  var fw=entry.frame_width||entry.width,fh=entry.frame_height||entry.height;
+  var cols=Math.max(1,Math.floor(entry.width/fw));
+  var sx=(index%cols)*fw,sy=Math.floor(index/cols)*fh;
+  var c=canvas.getContext('2d',{willReadFrequently:true});
+  c.clearRect(0,0,canvas.width,canvas.height);
+  c.imageSmoothingEnabled=false;
+  var factor=Math.min(canvas.width/fw,canvas.height/fh);
+  var w=Math.max(1,Math.round(fw*factor)),h=Math.max(1,Math.round(fh*factor));
+  c.drawImage(img,sx,sy,fw,fh,Math.floor((canvas.width-w)/2),Math.floor((canvas.height-h)/2),w,h);
+}
+function refAddFrame(img,entry,index){
+  if(layers.length>=MAX_LAYERS){toast('Canvas allows 24 layers. Delete a layer before importing.');return;}
+  if(!img.complete||!img.naturalWidth){toast('Reference image is still loading');return;}
+  var tile=document.createElement('canvas');tile.width=SIZE;tile.height=SIZE;
+  try{
+    refDrawFrame(img,entry,index,tile);
+    var pixels=tile.getContext('2d',{willReadFrequently:true}).getImageData(0,0,SIZE,SIZE).data;
+    // Add new layer, never flatten or replace existing artwork.
+    modify(function(){
+      var name=(entry.category==='trainer'?'Trainer':'Pokémon')+' · '+entry.label+' · '+entry.kind;
+      var layer=newLayer(name.slice(0,60),pixels);layers.push(layer);activeId=layer.id;
+    });
+    toast('Added '+entry.label+' frame '+(index+1)+' as an editable layer');
+  }catch(e){toast('Could not import sprite frame: '+e.message);}
+}
+function refsCard(entry){
+  var card=refElement('div','ref-card');
+  var title=refElement('div','ref-name',entry.label);card.append(title);
+  var pic=refElement('div','ref-picture');
+  var previewCanvas=document.createElement('canvas');previewCanvas.width=64;previewCanvas.height=64;
+  pic.append(previewCanvas);card.append(pic);
+  var summary=refElement('div','ref-meta',entry.kind+' · '+entry.width+'×'+entry.height+' · '+entry.frame_count+' frame'+(entry.frame_count===1?'':'s'));
+  card.append(summary);
+  var frame=0,img=new Image();
+  var buttons=refElement('div','ref-buttons');
+  var backwards=refElement('button','btn small','‹'),next=refElement('button','btn small','›');
+  var current=refElement('span','small-label','1/'+entry.frame_count);
+  var add=refElement('button','btn small primary','Add frame');
+  backwards.type=next.type=add.type='button';
+  if(entry.frame_count<=1){backwards.disabled=true;next.disabled=true;}
+  function redraw(){if(img.naturalWidth)refDrawFrame(img,entry,frame,previewCanvas);current.textContent=(frame+1)+'/'+entry.frame_count;}
+  backwards.addEventListener('click',function(){frame=(frame+entry.frame_count-1)%entry.frame_count;redraw();});
+  next.addEventListener('click',function(){frame=(frame+1)%entry.frame_count;redraw();});
+  add.addEventListener('click',function(){refAddFrame(img,entry,frame);});
+  img.onload=redraw;
+  img.onerror=function(){summary.textContent+=' · image unavailable';add.disabled=true;};
+  img.src='/api/v1/references/'+entry.id+'/image';
+  buttons.append(backwards,current,next,add);card.append(buttons);
+  return card;
+}
+function refsLoad(){
+  var request=++refsReq,category=el('refsCategory').value,query=el('refsQuery').value.trim();
+  el('refsStatus').textContent='Loading references…';
+  var params=new URLSearchParams({category:category,q:query,offset:String(refsOffset),limit:String(refsLimit)});
+  fetch('/api/v1/references?'+params.toString(),{cache:'no-store'}).then(function(response){
+    if(!response.ok)throw Error('reference service returned '+response.status);
+    return response.json();
+  }).then(function(data){
+    if(request!==refsReq)return;
+    if(!data||!Array.isArray(data.items))throw Error('Not a Canvas reference response');
+    refsTotal=data.total;
+    el('refsGrid').replaceChildren();
+    var fragment=document.createDocumentFragment();data.items.forEach(function(entry){fragment.append(refsCard(entry));});
+    el('refsGrid').append(fragment);
+    var first=refsTotal?refsOffset+1:0,last=refsOffset+data.items.length;
+    el('refsStatus').textContent=refsTotal.toLocaleString()+' indexed sheets · '+first+'–'+last+' shown · reference-only (training permissions unreviewed)';
+    el('refsPage').textContent='Page '+(Math.floor(refsOffset/refsLimit)+1)+' of '+Math.max(1,Math.ceil(refsTotal/refsLimit));
+    el('refsPrev').disabled=refsOffset===0;
+    el('refsNext').disabled=!data.has_more;
+  }).catch(function(error){
+    if(request!==refsReq)return;
+    el('refsGrid').replaceChildren();
+    el('refsStatus').textContent='Local sprite catalogue not connected. Open Canvas at http://127.0.0.1:8765 after running the local library server. '+error.message;
+    el('refsPrev').disabled=el('refsNext').disabled=true;
+  });
+}
+attach('refsBtn','click',function(){el('refsDialog').showModal();refsOffset=0;refsLoad();});
+attach('refsClose','click',function(){el('refsDialog').close();refsReq++;});
+attach('refsReload','click',refsLoad);
+attach('refsQuery','input',function(){clearTimeout(refsSearchTimer);refsSearchTimer=setTimeout(function(){refsOffset=0;refsLoad();},220);});
+attach('refsCategory','change',function(){refsOffset=0;refsLoad();});
+attach('refsPrev','click',function(){refsOffset=Math.max(0,refsOffset-refsLimit);refsLoad();});
+attach('refsNext','click',function(){if(refsOffset+refsLimit<refsTotal){refsOffset+=refsLimit;refsLoad();}});
 attach('exportBtn','click',function(){exportPng(1);});attach('exportBigBtn','click',function(){exportPng(8);});
 var viewport=el('viewport');viewport.addEventListener('dragover',function(e){e.preventDefault();viewport.classList.add('dragover');});viewport.addEventListener('dragleave',function(){viewport.classList.remove('dragover');});viewport.addEventListener('drop',function(e){e.preventDefault();viewport.classList.remove('dragover');importFile(e.dataTransfer.files[0]);});
 window.addEventListener('keydown',function(e){var editable=e.target.closest('input,textarea,select,[contenteditable]');if(editable)return;var mod=e.ctrlKey||e.metaKey,k=e.key.toLowerCase();if(mod){if(k==='a'){e.preventDefault();selection={x:0,y:0,w:SIZE,h:SIZE};drawSelection();return;}if(k==='z'){e.preventDefault();e.shiftKey?redo():undo();}else if(k==='y'){e.preventDefault();redo();}else if(k==='s'){e.preventDefault();saveProject();}else if(k==='o'){e.preventDefault();el('fileInput').click();}else if(k==='c'){if(selection){e.preventDefault();copySelection(false);}}else if(k==='x'){if(selection){e.preventDefault();copySelection(true);}}else if(k==='v'){if(clipboard){e.preventDefault();pasteSelection();}}return;}
