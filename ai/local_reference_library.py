@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Canvas AI local sprite reference library.
+r"""Canvas AI local sprite reference library.
 
 Scans all Pokémon and trainer PNGs without copying artwork to GitHub.
 Usage:
@@ -19,6 +19,7 @@ import struct
 import sys
 import time
 from collections import Counter
+from contextlib import closing
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
@@ -174,7 +175,7 @@ def catalog(db: Path, category: str = "all", query: str = "", offset: int = 0, l
         where.append("(label LIKE ? ESCAPE '\\' OR kind LIKE ? ESCAPE '\\' OR relpath LIKE ? ESCAPE '\\')")
         args.extend(["%" + q + "%"] * 3)
     clause = " WHERE " + " AND ".join(where) if where else ""
-    with connection(db) as conn:
+    with closing(connection(db)) as conn:
         total = conn.execute("SELECT COUNT(*) FROM sprites" + clause, args).fetchone()[0]
         rows = conn.execute("SELECT id,category,label,kind,width,height,frame_width,frame_height,frame_count,bytes,permission_state,train_allowed FROM sprites"
                             + clause + " ORDER BY category,label,kind LIMIT ? OFFSET ?", [*args, limit, offset]).fetchall()
@@ -183,7 +184,7 @@ def catalog(db: Path, category: str = "all", query: str = "", offset: int = 0, l
 
 
 def statistics(db: Path) -> dict:
-    with connection(db) as conn:
+    with closing(connection(db)) as conn:
         counts = {row[0]: row[1] for row in conn.execute("SELECT category,COUNT(*) FROM sprites GROUP BY category")}
         frames = conn.execute("SELECT COALESCE(SUM(frame_count),0) FROM sprites").fetchone()[0]
         eligible = conn.execute("SELECT COUNT(*) FROM sprites WHERE train_allowed=1").fetchone()[0]
@@ -201,7 +202,7 @@ def serve(db_path: Path, site: Path, host: str, port: int) -> None:
         raise FileNotFoundError(f"Missing Canvas index.html in {site}")
     if not db_path.is_file():
         raise FileNotFoundError(f"Missing reference index: {db_path}; run scan first")
-    with connection(db_path) as conn:
+    with closing(connection(db_path)) as conn:
         metadata = conn.execute("SELECT value FROM metadata WHERE key='source_root'").fetchone()
     if not metadata:
         raise ValueError("Database does not have a source root")
@@ -249,7 +250,7 @@ def serve(db_path: Path, site: Path, host: str, port: int) -> None:
                 return self.send_json(statistics(db_path))
             match = re.fullmatch(r"/api/v1/references/([a-f0-9]{24})/image", path)
             if match:
-                with connection(db_path) as conn:
+                with closing(connection(db_path)) as conn:
                     row = conn.execute("SELECT relpath FROM sprites WHERE id=?", (match.group(1),)).fetchone()
                 if not row:
                     return self.send_json({"error": "Image not found"}, 404)
