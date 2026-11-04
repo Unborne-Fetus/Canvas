@@ -43,3 +43,13 @@ python tests/local-generator-smoke.py
 ```
 
 A full generation smoke test additionally requires a working PyTorch CUDA installation, the chosen Diffusers model downloaded with its license terms accepted, and sufficient GPU memory. The lightweight smoke test deliberately does not download any weights or consume GPU memory.
+
+## Validation on Windows (November 4, 2026)
+
+- PC: NVIDIA GeForce RTX 4060, 8 GB VRAM; isolated Python 3.11 environment; CUDA PyTorch 2.14.1; Diffusers 0.39; SD-Turbo checkpoint cached locally.
+- **Verified real generation:** indexed Scizor `anim_front` reference → image-to-image on CUDA → 64×64 RGBA PNG, status `done`, no error.
+- **Verified real generation:** original user-provided PNG upload → image-to-image on CUDA → 64×64 PNG, status `done`, no error.
+- Indexed GBA sprites such as `scizor/anim_front.png` use a solid palette-index-0 background, not actual PNG transparency; the reference importer now interprets that matte as alpha **without altering the original file**. Reference previews and img2img guides both apply the conversion.
+- Fixed a geometry bug where a small input sprite wasn't upscaled to the 512×512 model input (produced nearly empty output). Added a regression test requiring substantial reference coverage.
+- **Quality warning:** These are end-to-end functionality checks, not proof of game-ready Scizor anatomy. The generic SD-Turbo output is visibly rough and can include stray pixels or low-fidelity appendages. A curated, permission-cleared, dedicated pixel-art model or fine-tune and interactive pixel cleanup are still needed for polished Pokémon-like sprites.
+- **Privacy:** No copyrighted reference PNGs, checkpoint weights, or generated test images were pushed to GitHub.
