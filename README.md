@@ -61,18 +61,18 @@ Then visit http://localhost:8000.
 On macOS, use Command instead of Ctrl.
 
 
-## Edit sprites with ChatGPT
+## AI Live editing with ChatGPT
 
-Canvas now has an **Edit with AI ✦** button that downloads your **layered** \`.canvas.json\` project. To have ChatGPT improve a sprite while preserving your existing layers:
+Canvas supports **GitHub-backed AI Live** mode for sprites in this public repository. You no longer need to download or import a project every time ChatGPT edits it.
 
-1. Open your sprite in Canvas and click **Edit with AI ✦**.
-2. Attach the downloaded \`.canvas.json\` to ChatGPT and select the private **Canvas Sprite Editor** plugin.
-3. Describe the change (for example: *recolor the leaves, preserve the outlines, and add a one-pixel shadow*).
-4. Import the resulting \`.canvas.json\` back into Canvas.
+1. Ask **Canvas Sprite Editor** to create or update a `sprites/NAME.canvas.json` project in `Unborne-Fetus/Canvas`.
+2. Open Canvas with `?live=sprites/NAME.canvas.json` appended to the editor URL. Alternatively, click **AI Live ✦**, enter the GitHub path, and connect.
+3. Leave the tab open. When ChatGPT edits the project and commits it to GitHub, Canvas checks for a new revision approximately every 12 seconds while the tab is visible.
+4. Use **Copy AI prompt** for the exact path to request further changes in ChatGPT. If you have drawn on the canvas since connecting, click **Load update** to accept the incoming AI revision (a local backup is saved first). Use **Restore backup** to recover the previous browser draft.
 
-For projects shared in the GitHub repository, upload the exported \`.canvas.json\` into [\`sprites/\`](sprites/README.md). ChatGPT can then read and update the file through an **authorized connected GitHub account**. These changes are saved to GitHub, but they **do not automatically appear in a browser-only draft**; download/import the updated file to see them in the editor.
+**Important limitations:** This is a read-only GitHub-to-browser sync from ChatGPT's authenticated GitHub commits, **not** browser-to-GitHub real-time collaboration. Strokes made in the browser remain autosaved on that device; ChatGPT cannot see them until they are shared in the GitHub sprite file. It never asks for GitHub passwords or tokens. It works with public GitHub sprite files and needs the Pages site or another hosting option to be available. Network caching and deployment may introduce delay; it is not an instant shared drawing surface.
 
-The Canvas plugin is a private workflow/plugin with a project editing helper. It is **not** a live remote connection to browser storage, and it does not accept GitHub passwords or personal access tokens.
+For a draft that exists only in your browser, one initial export/upload or chat attachment is still needed to establish the GitHub-backed sprite. After it exists in `sprites/`, subsequent edits can flow directly from ChatGPT to the open Canvas page.
 
 ### Polished sprite tools
 
