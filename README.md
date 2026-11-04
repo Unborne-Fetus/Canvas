@@ -69,6 +69,14 @@ The implementation blueprint for a **real trained 64×64 sprite AI**, a user-exp
 
 The planned importer can discover sprites in a local Pokeemerald Expansion asset collection, but artwork is not bundled or automatically authorized for redistribution/training; each training dataset must have verified permissions.
 
+## Pokémon and trainer reference library (local)
+
+Canvas now includes a **References ▦** browser when launched with its local Python companion. A recursive importer indexes all PNG sheets under both `graphics/pokemon` and `graphics/trainers` from an existing Pokeemerald Expansion/Brisk Emerald checkout **without copying artwork to this public repository**. Search species/trainers, browse frames of sprite sheets, and click **Add frame** to add a non-destructive editable Canvas layer.
+
+For Windows, clone this repo locally and run **`launch_canvas_references.bat`**. The default source is `C:\ROM Hacks\Pokemon Brisk Emerald`; pass a different source repository path as the first argument if needed. Then open **http://127.0.0.1:8765** (not the GitHub Pages site) to browse locally indexed sprites. See [Reference Library Guide](docs/REFERENCE_LIBRARY.md).
+
+**No actual AI model training is performed during import.** Permissions for model training remain unreviewed and disabled by default because Pokémon and community sprites have different rights holders.
+
 ## AI Live editing with ChatGPT
 
 Canvas supports **GitHub-backed AI Live** mode for sprites in this public repository. You no longer need to download or import a project every time ChatGPT edits it.
