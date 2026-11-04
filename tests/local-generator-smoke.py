@@ -49,6 +49,21 @@ with tempfile.TemporaryDirectory() as temporary:
     assert mask is not None
     assert mask.getpixel((0,0)) == 0
     assert mask.getpixel((32,32)) == 255
+    # Game sprite PNGs may be indexed, palette-matted images with no alpha.
+    indexed = Image.new("P", (64,64), 0)
+    indexed.putpalette([152,208,160, 190,30,40] + [0,0,0]*254)
+    indexed.paste(1,(12,8,52,59))
+    keyed_path = graphics / "trainers" / "back_pics" / "sample.png"
+    keyed_path.parent.mkdir(parents=True,exist_ok=True)
+    indexed.save(keyed_path)
+    with closing(sqlite3.connect(db)) as conn:
+        conn.execute("INSERT INTO sprites VALUES(?,?,?,?,?,?,?)",
+                     ("b"*24,"trainers/back_pics/sample.png",64,64,1,64,64))
+        conn.commit()
+    keyed = g.select_frame(graphics,db,{"id":"b"*24,"frame":0})
+    assert keyed.getpixel((0,0))[3] == 0, keyed.getpixel((0,0))
+    assert keyed.getpixel((25,25)) == (190,30,40,255)
+    assert g.reference_alpha_mask(keyed) is not None
     assert len(g.models()) == 2
     assert g.capabilities()["installed"] in (True, False)
 print("Canvas local generator preprocessing smoke test passed")
