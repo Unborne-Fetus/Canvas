@@ -60,6 +60,28 @@ Then visit http://localhost:8000.
 
 On macOS, use Command instead of Ctrl.
 
+
+## Edit sprites with ChatGPT
+
+Canvas now has an **Edit with AI ✦** button that downloads your **layered** \`.canvas.json\` project. To have ChatGPT improve a sprite while preserving your existing layers:
+
+1. Open your sprite in Canvas and click **Edit with AI ✦**.
+2. Attach the downloaded \`.canvas.json\` to ChatGPT and select the private **Canvas Sprite Editor** plugin.
+3. Describe the change (for example: *recolor the leaves, preserve the outlines, and add a one-pixel shadow*).
+4. Import the resulting \`.canvas.json\` back into Canvas.
+
+For projects shared in the GitHub repository, upload the exported \`.canvas.json\` into [\`sprites/\`](sprites/README.md). ChatGPT can then read and update the file through an **authorized connected GitHub account**. These changes are saved to GitHub, but they **do not automatically appear in a browser-only draft**; download/import the updated file to see them in the editor.
+
+The Canvas plugin is a private workflow/plugin with a project editing helper. It is **not** a live remote connection to browser storage, and it does not accept GitHub passwords or personal access tokens.
+
+### Polished sprite tools
+
+- **Outline 1px** adds an outline around opaque pixels on the active layer in the primary color.
+- **Recolor** replaces the secondary RGB color with the primary RGB color on the active layer.
+- Click the project name to rename it.
+- **Ctrl+A** selects the whole sprite; **Delete** clears pixels in the selected area.
+- **Alt+click** samples a color from the canvas without switching tools.
+
 ## Image and project formats
 
 - **Export PNG**: 64×64 RGBA, no background burned into the image. This is the sprite size intended for use in Pokémon-inspired fan projects.
