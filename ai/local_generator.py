@@ -107,7 +107,11 @@ def subject_crop(image: Image.Image) -> Image.Image:
     bounds = source.getchannel("A").getbbox()
     if bounds:
         source = source.crop(bounds)
-    source.thumbnail((410, 410), RESAMPLING)
+    # Pixel art is usually 16–80 px. An ordinary thumbnail() never upscales it,
+    # leaving a tiny figure in a 512px diffusion input and nearly empty outputs.
+    ratio = min(410 / source.width, 410 / source.height)
+    source = source.resize((max(1, round(source.width * ratio)),
+                            max(1, round(source.height * ratio))), RESAMPLING)
     backdrop = Image.new("RGBA", (512,512), (236,238,242,255))
     backdrop.alpha_composite(source, ((512-source.width)//2,(512-source.height)//2))
     return backdrop.convert("RGB")
