@@ -18,7 +18,7 @@ for (const feature of ['function livePoll(', 'function connectLive(', 'function 
 for (const feature of ['id="refsBtn"', 'id="refsDialog"', 'function refsLoad(', 'function refAddFrame(', 'id="refsCategory"']) {
   assert.ok(html.includes(feature), 'Missing local reference library UI: ' + feature);
 }
-for (const feature of ['id="aiStudioBtn"', 'id="aiStudioDialog"', 'id="aiGenerate"', 'function aiGenerate(', 'function aiChooseReference(', 'function aiAddResult(', 'Use for AI']) {
+for (const feature of ['id="aiStudioBtn"', 'id="aiStudioDialog"', 'id="aiGenerate"', 'id="aiAllowCpu"', 'id="refsSource"', 'id="refsScan"', 'function refsScanFolder(', 'function aiGenerate(', 'function aiChooseReference(', 'function aiAddResult(', 'Use for AI']) {
   assert.ok(html.includes(feature), 'Missing AI Studio interface: ' + feature);
 }
 const match=html.match(/<script>([\s\S]*?)<\/script>/);
