@@ -14,3 +14,4 @@ ai/generated/
 ai/cache/
 .env
 .env.*
+dist/
