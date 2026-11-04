@@ -1,0 +1,204 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/canvas/ai/reference.schema.json",
+  "title": "Canvas AI Studio reference entry",
+  "description": "One imported sprite reference. Training must check permissions.train and immutable dataset snapshot membership.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "source",
+    "sha256",
+    "width",
+    "height",
+    "frame_index",
+    "tags",
+    "body_plan",
+    "pose",
+    "palette",
+    "license",
+    "attribution",
+    "permissions",
+    "family_id",
+    "dataset_split",
+    "file_uri"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "path"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "expansion_local",
+            "user_upload",
+            "synthetic",
+            "other"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "repository": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "revision": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "width": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 8192
+    },
+    "height": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 8192
+    },
+    "normalized_width": {
+      "const": 64
+    },
+    "normalized_height": {
+      "const": 64
+    },
+    "frame_index": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "tags": {
+      "type": "array",
+      "maxItems": 64,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64
+      }
+    },
+    "body_plan": {
+      "enum": [
+        "biped",
+        "quadruped",
+        "avian",
+        "serpentine",
+        "insectoid",
+        "amorphous",
+        "other",
+        "unknown"
+      ]
+    },
+    "pose": {
+      "enum": [
+        "front",
+        "three_quarter",
+        "side",
+        "rear",
+        "other",
+        "unknown"
+      ]
+    },
+    "palette": {
+      "type": "array",
+      "maxItems": 256,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^#[0-9A-Fa-f]{6}$"
+      }
+    },
+    "license": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 180
+    },
+    "attribution": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "permissions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reference",
+        "train",
+        "redistribute"
+      ],
+      "properties": {
+        "reference": {
+          "type": "boolean"
+        },
+        "train": {
+          "type": "boolean"
+        },
+        "redistribute": {
+          "type": "boolean"
+        },
+        "verified_by": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "verified_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        }
+      }
+    },
+    "family_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 128
+    },
+    "dataset_split": {
+      "enum": [
+        "train",
+        "validation",
+        "test",
+        null
+      ]
+    },
+    "file_uri": {
+      "type": "string",
+      "minLength": 1
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}
