@@ -4,25 +4,19 @@
 
 The importer indexes PNG sprite files under an existing Pokeemerald Expansion/Brisk Emerald checkout and serves them privately from the user's own machine. It does **not** upload the source artwork or copy it into the public Canvas repository.
 
-## One-time setup (Windows)
+## Per-user setup
 
-Make sure Python 3 is installed. Clone this Canvas repository to a local folder, or update your existing checkout. Double-click `launch_canvas_references.bat`. By default it scans:
+References belong to **whoever is running Canvas**, not a single development computer.
 
-`C:\ROM Hacks\Pokemon Brisk Emerald\graphics\pokemon`
-`C:\ROM Hacks\Pokemon Brisk Emerald\graphics\trainers`
+1. Obtain Canvas on your computer.
+2. Start the local companion using `launch_canvas_ai.bat` (Windows) or `bash launch_canvas_ai.sh` (macOS/Linux). On Windows, it installs the optional local model environment on first launch; Python 3.11 is required.
+3. Open **http://127.0.0.1:8765** on that computer and choose **References ▦**.
+4. Enter the path to **your own** Pokeemerald Expansion repository and click **Index my sprite folder**. The browser cannot pick arbitrary directories from a website, so provide an existing path to a locally accessible checkout. A path is optional.
+5. Search and browse indexed Pokémon and trainer sheets. Choose **Add frame** to insert one as a layer, or **Use for AI** for image-to-image guidance.
 
-Alternatively, from the Canvas directory:
+For a reference-only launch without the large AI model dependencies, Python and Pillow are enough: run `python ai/local_reference_library.py serve --site .` and use the in-app import field. Alternatively run `python ai/local_reference_library.py scan --source "/path/to/your/expansion"` before serving.
 
-```powershell
-python ai/local_reference_library.py scan --source "C:\ROM Hacks\Pokemon Brisk Emerald"
-python ai/local_reference_library.py serve --site . --port 8765
-```
-
-For other locations pass `--source "PATH_TO_EXPANSION_REPO"` to the scanner, or pass the path to the batch launcher as its first argument.
-
-Open **http://127.0.0.1:8765**. Click **References ▦**, then search and filter `Pokémon` / `Trainers`. Use the arrows to browse individual frames of multi-frame sheets; **Add frame** creates a *new editable Canvas layer* preserving all existing layers and undo history.
-
-The public GitHub Pages site is still an editor, but it cannot read your PC's private filesystem or use the local catalogue by itself. Open the local URL for the complete imported collection.
+The static GitHub Pages site does not have access to the visitor's private files. Use the local URL to browse personal sprite collections. No source image is copied into the public repo.
 
 ## What gets indexed
 
