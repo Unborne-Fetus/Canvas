@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/canvas/ai/training-request.schema.json",
+  "title": "Canvas AI Studio create training request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "dataset_snapshot_id",
+    "mode",
+    "architecture",
+    "image_size",
+    "seed",
+    "train_batch_size",
+    "epochs",
+    "learning_rate"
+  ],
+  "properties": {
+    "dataset_snapshot_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "mode": {
+      "enum": [
+        "from_scratch",
+        "fine_tune"
+      ]
+    },
+    "architecture": {
+      "enum": [
+        "rgba-ddpm-64",
+        "conditional-sprite-64"
+      ]
+    },
+    "image_size": {
+      "const": 64
+    },
+    "base_model_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "seed": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4294967295
+    },
+    "train_batch_size": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 256
+    },
+    "epochs": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10000
+    },
+    "learning_rate": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 1
+    },
+    "save_every_steps": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000000
+    },
+    "resume_checkpoint_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "use_ema": {
+      "type": "boolean"
+    },
+    "notes": {
+      "type": "string",
+      "maxLength": 2000
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "mode": {
+            "const": "fine_tune"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "base_model_id"
+        ],
+        "properties": {
+          "base_model_id": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  ],
+  "description": "Do not infer training eligibility from a reference import. The backend must verify rights, immutable dataset hash, compatible checkpoint and available compute."
+}
