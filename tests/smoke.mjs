@@ -12,7 +12,10 @@ for (const tool of ['pencil','eraser','bucket','eyedropper','line','rect','rectf
 for (const feature of ['function fill(', 'function exportPng(', 'function undo(', 'function redo(', 'function fromProject(', 'function toProject(', 'function addLayer(', 'function pasteSelection(', "localStorage.setItem("]) {
   assert.ok(html.includes(feature),'Missing feature: '+feature);
 }
+for (const feature of ['function livePoll(', 'function connectLive(', 'function liveApplyProject(', 'canvas-live-backup:', 'raw.githubusercontent.com/Unborne-Fetus/Canvas/main/', 'id="liveApply"', 'id="liveDisconnect"']) {
+  assert.ok(html.includes(feature),'Missing AI Live feature: '+feature);
+}
 const match=html.match(/<script>([\s\S]*?)<\/script>/);
 assert.ok(match,'Missing editor script');
 new vm.Script(match[1],{filename:'canvas-editor.js'});
-console.log('Canvas smoke test passed: 64×64 size, ten tools, editor features, and JavaScript syntax.');
+console.log('Canvas smoke test passed: 64×64 editor, AI Live sync hooks, and JavaScript syntax.');
