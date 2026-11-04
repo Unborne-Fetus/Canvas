@@ -27,6 +27,7 @@ jobs:
         run: |
           node tests/smoke.mjs
           node tests/ai-contracts.mjs
+          python tests/reference-library-smoke.py
       - name: Prepare static site
         run: |
           mkdir -p _site
