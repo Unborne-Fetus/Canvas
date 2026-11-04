@@ -1,0 +1,31 @@
+name: Build portable Canvas AI companion
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  portable:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout public Canvas source
+        uses: actions/checkout@v4
+      - name: Install lightweight test dependency
+        run: python3 -m pip install 'Pillow>=10,<13'
+      - name: Validate editor and portable local AI backend
+        run: |
+          node tests/smoke.mjs
+          node tests/ai-contracts.mjs
+          python3 tests/reference-library-smoke.py
+          python3 tests/local-generator-smoke.py
+          python3 tests/per-device-smoke.py
+          python3 tests/package-smoke.py
+      - name: Create portable ZIP without private assets or weights
+        run: python3 tools/package_canvas_ai.py --output dist/Canvas-AI-Local-Companion.zip
+      - name: Publish downloadable source-only companion
+        uses: actions/upload-artifact@v4
+        with:
+          name: Canvas-AI-Local-Companion
+          path: dist/Canvas-AI-Local-Companion.zip
+          retention-days: 30
