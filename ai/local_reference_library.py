@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+from local_generator import capabilities as ai_capabilities, models as ai_models, start_job as ai_start_job, job_status as ai_job_status
 import mimetypes
 import os
 import re
@@ -226,12 +227,35 @@ def serve(db_path: Path, site: Path, host: str, port: int) -> None:
             self.send_bytes(json.dumps(obj, ensure_ascii=False, separators=(",", ":")).encode("utf-8"),
                             "application/json; charset=utf-8", status)
 
-        def do_GET(self) -> None:
+        def valid_origin(self) -> bool:
             host_header = self.headers.get("Host", "").split(":")[0].lower()
             origin = self.headers.get("Origin")
-            if host_header not in ("localhost", "127.0.0.1") or (
-                origin and origin not in (f"http://localhost:{port}", f"http://127.0.0.1:{port}")
-            ):
+            fetch_site = self.headers.get("Sec-Fetch-Site","")
+            # No cross-site POSTs, and no localhost browser requests to this process from other sites.
+            return (host_header in ("localhost","127.0.0.1")
+                    and (not origin or origin in (f"http://localhost:{port}", f"http://127.0.0.1:{port}"))
+                    and fetch_site not in ("cross-site", "same-site"))
+
+        def do_POST(self) -> None:
+            if not self.valid_origin():
+                return self.send_json({"error":"Local origin required"},403)
+            if self.path != "/api/v1/generations":
+                return self.send_json({"error":"Not found"},404)
+            try:
+                size = int(self.headers.get("Content-Length","0"))
+            except ValueError:
+                return self.send_json({"error":"Invalid Content-Length"},400)
+            if size < 2 or size > 15_000_000:
+                return self.send_json({"error":"Request must be 2 bytes to 15MB"},413)
+            try:
+                params = json.loads(self.rfile.read(size))
+                data = ai_start_job(params, graphics, db_path)
+            except (ValueError,TypeError,json.JSONDecodeError) as error:
+                return self.send_json({"error":str(error)[:240]},400)
+            return self.send_json(data,202)
+
+        def do_GET(self) -> None:
+            if not self.valid_origin():
                 return self.send_json({"error": "Local origin required"}, 403)
             parsed = urlsplit(self.path)
             path = unquote(parsed.path)
@@ -247,7 +271,16 @@ def serve(db_path: Path, site: Path, host: str, port: int) -> None:
                 return self.send_json(catalog(db_path, params.get("category", ["all"])[0],
                                               params.get("q", [""])[0], off, limit))
             if path in ("/api/v1/stats", "/api/v1/health"):
-                return self.send_json(statistics(db_path))
+                result = statistics(db_path)
+                if path.endswith("/health"):
+                    result["ai"] = ai_capabilities()
+                return self.send_json(result)
+            if path == "/api/v1/models":
+                return self.send_json({"models":ai_models(),"device":ai_capabilities()})
+            gen_match = re.fullmatch(r"/api/v1/generations/([a-f0-9]{32})",path)
+            if gen_match:
+                job=ai_job_status(gen_match.group(1))
+                return self.send_json(job) if job else self.send_json({"error":"Job not found"},404)
             match = re.fullmatch(r"/api/v1/references/([a-f0-9]{24})/image", path)
             if match:
                 with closing(connection(db_path)) as conn:
