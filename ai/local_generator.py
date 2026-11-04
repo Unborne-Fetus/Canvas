@@ -6,6 +6,7 @@ Reference sprites are loaded from the private indexed PNG library; no training o
 from __future__ import annotations
 
 import base64
+from contextlib import closing
 import io
 import os
 import random
@@ -79,7 +80,7 @@ def select_frame(graphics: Path, db_path: Path, entry: dict) -> Image.Image:
     frame = int(entry.get("frame", 0))
     if not isinstance(ref_id, str) or len(ref_id) != 24 or any(c not in "0123456789abcdef" for c in ref_id):
         raise ValueError("Invalid reference ID")
-    with sqlite3.connect(db_path) as conn:
+    with closing(sqlite3.connect(db_path)) as conn:
         row = conn.execute("SELECT relpath,frame_width,frame_height,frame_count,width,height FROM sprites WHERE id=?", (ref_id,)).fetchone()
     if row is None:
         raise ValueError("Reference ID not found")
