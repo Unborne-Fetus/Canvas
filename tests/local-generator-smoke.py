@@ -45,6 +45,10 @@ with tempfile.TemporaryDirectory() as temporary:
     assert foreground > 40000, foreground
     result = g.spriteize(g.references_montage([img]), 24)
     assert result.size == (64, 64) and result.mode == "RGBA"
+    mask = g.reference_alpha_mask(img)
+    assert mask is not None
+    assert mask.getpixel((0,0)) == 0
+    assert mask.getpixel((32,32)) == 255
     assert len(g.models()) == 2
     assert g.capabilities()["installed"] in (True, False)
 print("Canvas local generator preprocessing smoke test passed")
