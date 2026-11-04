@@ -77,6 +77,14 @@ For Windows, clone this repo locally and run **`launch_canvas_references.bat`**.
 
 **No actual AI model training is performed during import.** Permissions for model training remain unreviewed and disabled by default because Pokémon and community sprites have different rights holders.
 
+## AI Studio: local PC image generation (V1)
+
+Canvas now has an optional **AI Studio ✦** dialog for GPU-backed 64×64 image generation, **without a paid API**. The optional local service uses the user's own computer, supports a text prompt, selected expansion references from **References ▦**, up to four user-uploaded PNGs, and current Canvas pixels as an image-to-image starting point. Results can be inserted as **new undoable editable layers**.
+
+**On Windows:** run `setup_canvas_ai.bat` once (installs Python 3.11 CUDA PyTorch and Diffusers), then run `launch_canvas_ai.bat` to open `http://127.0.0.1:8765`. The selected pretrained model downloads only on the first Generate click. Learn about limitations, privacy, optional models, and setup in [Local Image AI Guide](docs/LOCAL_IMAGE_AI.md).
+
+The V1 model is a general pretrained diffusion model, **not** a Pokémon-trained model. References serve as input images (with an optional contact strip), **not fine-tuning data**. Outputs will require quality review. No proprietary Pokémon artwork, model weights, or user uploads are published to this repo.
+
 ## AI Live editing with ChatGPT
 
 Canvas supports **GitHub-backed AI Live** mode for sprites in this public repository. You no longer need to download or import a project every time ChatGPT edits it.
