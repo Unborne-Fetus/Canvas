@@ -17,7 +17,7 @@ import uuid
 from collections import deque
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageChops, ImageFilter
 
 MODEL_IDS = {
     "sd-turbo": "stabilityai/sd-turbo",
@@ -161,10 +161,36 @@ def remove_edge_background(img: Image.Image, tolerance: int = 28) -> Image.Image
     return image
 
 
-def spriteize(image: Image.Image, colors: int = 24) -> Image.Image:
+def reference_alpha_mask(image: Image.Image) -> Image.Image | None:
+    """A slightly expanded silhouette mask for reference-guided generation.
+
+    This suppresses colored backdrop artifacts while leaving a margin for
+    redesigned wings, claws, and other nearby appendages.
+    """
+    original = image.convert("RGBA")
+    alpha = original.getchannel("A")
+    bounds = alpha.getbbox()
+    if not bounds or alpha.getextrema() == (255,255):
+        return None
+    crop = alpha.crop(bounds)
+    factor = min(410 / crop.width, 410 / crop.height)
+    crop = crop.resize((max(1,round(crop.width*factor)),
+                        max(1,round(crop.height*factor))),RESAMPLING)
+    guide = Image.new("L",(512,512),0)
+    guide.paste(crop,((512-crop.width)//2,(512-crop.height)//2))
+    guide = guide.resize((64,64), RESAMPLING)
+    return guide.filter(ImageFilter.MaxFilter(9)).point(lambda p: 255 if p > 40 else 0)
+
+
+def spriteize(image: Image.Image, colors: int = 24,
+              reference: Image.Image | None = None) -> Image.Image:
     scaled = image.convert("RGB").resize((64,64),RESAMPLING)
     transparent = remove_edge_background(scaled)
     mask = transparent.getchannel("A")
+    if reference is not None:
+        reference_mask = reference_alpha_mask(reference)
+        if reference_mask is not None:
+            mask = ImageChops.multiply(mask,reference_mask)
     palette = transparent.convert("RGB").quantize(colors=max(4,min(48,colors)),dither=Image.Dither.NONE).convert("RGBA")
     palette.putalpha(mask)
     return palette
@@ -246,7 +272,7 @@ def make_candidates(job: dict, params: dict, graphics: Path, database: Path):
             kwargs["strength"]=float(strength)
         with torch.inference_mode():
             output = pipeline(**kwargs).images[0]
-        sprite = spriteize(output,params.get("colors",24))
+        sprite = spriteize(output,params.get("colors",24), images[0] if images else None)
         result.append({"seed":seed+i,"image":png_data(sprite),"width":64,"height":64})
         job["progress"]=int((i+1)*100/count)
     job["candidates"]=result
