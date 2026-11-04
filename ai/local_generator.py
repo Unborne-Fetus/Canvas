@@ -95,7 +95,12 @@ def select_frame(graphics: Path, db_path: Path, entry: dict) -> Image.Image:
             raise ValueError("Reference sheet changed; rescan library")
         columns = max(1, width // fw)
         x,y = (frame % columns) * fw, (frame // columns) * fh
-        return img.crop((x,y,x+fw,y+fh)).convert("RGBA")
+        # Pokeemerald Expansion often stores indexed sprite PNGs with a solid
+        # palette-index-0 matte instead of a PNG tRNS alpha channel. Treat the
+        # sheet's upper-left palette index as transparent without altering it.
+        if img.mode == "P" and "transparency" not in img.info:
+            img.info["transparency"] = img.getpixel((0, 0))
+        return img.convert("RGBA").crop((x,y,x+fw,y+fh))
 
 
 def subject_crop(image: Image.Image) -> Image.Image:
