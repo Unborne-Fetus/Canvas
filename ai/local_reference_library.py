@@ -203,16 +203,19 @@ def serve(db_path: Path, site: Path, host: str, port: int) -> None:
         raise ValueError("Local reference server must bind to localhost")
     if not (site / "index.html").is_file():
         raise FileNotFoundError(f"Missing Canvas index.html in {site}")
-    if not db_path.is_file():
-        raise FileNotFoundError(f"Missing reference index: {db_path}; run scan first")
+    # A fresh installation must start without a game checkout. Users can
+    # generate from prompts, their own PNG uploads or the current Canvas first.
+    db_path.parent.mkdir(parents=True, exist_ok=True)
     with closing(connection(db_path)) as conn:
+        create_db(conn)
+        conn.commit()
         metadata = conn.execute("SELECT value FROM metadata WHERE key='source_root'").fetchone()
-    if not metadata:
-        raise ValueError("Database does not have a source root")
-    graphics = Path(metadata[0]).resolve()
-    allowed = (graphics / "pokemon", graphics / "trainers")
-    if not all(p.is_dir() for p in allowed):
-        raise FileNotFoundError(f"Sprite folders moved: {graphics}; rerun scan")
+    graphics = Path(metadata[0]).resolve() if metadata else None
+    allowed = (graphics / "pokemon", graphics / "trainers") if graphics else ()
+    if graphics and not all(p.is_dir() for p in allowed):
+        # Source drive may have been disconnected; do not disable generation.
+        graphics = None
+        allowed = ()
 
     class Handler(BaseHTTPRequestHandler):
         def send_bytes(self, data: bytes, content_type: str, status: int = 200) -> None:
@@ -289,6 +292,8 @@ def serve(db_path: Path, site: Path, host: str, port: int) -> None:
                     row = conn.execute("SELECT relpath FROM sprites WHERE id=?", (match.group(1),)).fetchone()
                 if not row:
                     return self.send_json({"error": "Image not found"}, 404)
+                if graphics is None:
+                    return self.send_json({"error":"No local sprite folder connected; import one on this device"},404)
                 candidate = (graphics / row[0]).resolve()
                 if not any(candidate.is_relative_to(p) for p in allowed) or candidate.suffix.lower() != ".png":
                     return self.send_json({"error": "Access denied"}, 403)
@@ -311,7 +316,7 @@ def serve(db_path: Path, site: Path, host: str, port: int) -> None:
                 super().log_message(fmt, *args)
 
     print(f"Canvas reference library: http://{host}:{port}", flush=True)
-    print(f"Using {db_path} | source {graphics}", flush=True)
+    print(f"Using {db_path} | source {graphics or 'none (personal uploads supported)'}", flush=True)
     with ThreadingHTTPServer((host, port), Handler) as server:
         server.serve_forever()
 
