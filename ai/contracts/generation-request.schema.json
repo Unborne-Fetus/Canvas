@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/canvas/ai/generation-request.schema.json",
+  "title": "Canvas AI Studio generation request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "model_id",
+    "image_size",
+    "count",
+    "seed"
+  ],
+  "properties": {
+    "model_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "image_size": {
+      "const": 64
+    },
+    "prompt": {
+      "type": "string",
+      "maxLength": 1500
+    },
+    "tags": {
+      "type": "array",
+      "uniqueItems": true,
+      "maxItems": 64,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64
+      }
+    },
+    "reference_ids": {
+      "type": "array",
+      "maxItems": 16,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "base_image_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Reference already uploaded with user permission and explicit generation request; no arbitrary local file paths."
+    },
+    "mask_image_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "palette": {
+      "type": "array",
+      "maxItems": 64,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^#[0-9A-Fa-f]{6}$"
+      }
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4
+    },
+    "seed": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4294967295
+    },
+    "guidance_scale": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 30
+    },
+    "strength": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "canvas_revision": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Client revision used to avoid overwriting a newer manual drawing."
+    }
+  },
+  "description": "The selected checkpoint must declare prompt/image/mask conditioning support; requests with unsupported fields must be rejected. Response candidates are single-layer RGBA PNGs unless a segmentation model is provided."
+}
