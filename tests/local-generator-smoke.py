@@ -64,6 +64,14 @@ with tempfile.TemporaryDirectory() as temporary:
     assert keyed.getpixel((0,0))[3] == 0, keyed.getpixel((0,0))
     assert keyed.getpixel((25,25)) == (190,30,40,255)
     assert g.reference_alpha_mask(keyed) is not None
+    class Fake:
+        def __init__(self, cuda=False, mps=False):
+            self.cuda = type("FakeCUDA", (), {"is_available": lambda self: cuda})()
+            self.backends = type("Backend", (), {
+                "mps": type("FakeMPS", (), {"is_available": lambda self: mps})()})()
+    assert g.hardware_backend(Fake(cuda=True)) == "cuda"
+    assert g.hardware_backend(Fake(mps=True)) == "mps"
+    assert g.hardware_backend(Fake()) == "cpu"
     assert len(g.models()) == 2
     assert g.capabilities()["installed"] in (True, False)
 print("Canvas local generator preprocessing smoke test passed")
