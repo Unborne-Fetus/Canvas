@@ -39,6 +39,10 @@ with tempfile.TemporaryDirectory() as temporary:
     raw = g.png_data(img)
     assert g.decode_png_data(raw).size == (64, 64)
     assert g.references_montage([img, img]).size == (512, 512)
+    # The main reference should fill a substantial part of the 512px guide.
+    guide = g.subject_crop(img)
+    foreground = sum(1 for rgb in guide.get_flattened_data() if rgb != (236, 238, 242))
+    assert foreground > 40000, foreground
     result = g.spriteize(g.references_montage([img]), 24)
     assert result.size == (64, 64) and result.mode == "RGBA"
     assert len(g.models()) == 2
