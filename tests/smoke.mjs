@@ -15,6 +15,9 @@ for (const feature of ['function fill(', 'function exportPng(', 'function undo('
 for (const feature of ['function livePoll(', 'function connectLive(', 'function liveApplyProject(', 'canvas-live-backup:', 'raw.githubusercontent.com/Unborne-Fetus/Canvas/main/', 'id="liveApply"', 'id="liveDisconnect"']) {
   assert.ok(html.includes(feature),'Missing AI Live feature: '+feature);
 }
+for (const feature of ['id="refsBtn"', 'id="refsDialog"', 'function refsLoad(', 'function refAddFrame(', 'id="refsCategory"']) {
+  assert.ok(html.includes(feature), 'Missing local reference library UI: ' + feature);
+}
 const match=html.match(/<script>([\s\S]*?)<\/script>/);
 assert.ok(match,'Missing editor script');
 new vm.Script(match[1],{filename:'canvas-editor.js'});
