@@ -276,6 +276,9 @@ function liveSetStatus(message){
 function liveHasArt(){
   return layers.some(function(l){for(var i=3;i<l.pixels.length;i+=4){if(l.pixels[i])return true;}return false;});
 }
+function liveCleanSnapshot(){
+  try{return localStorage.getItem('canvas-live-clean:'+livePath)===JSON.stringify(toProject());}catch(e){return false;}
+}
 function liveBackup(){
   try{localStorage.setItem('canvas-live-backup:'+livePath,JSON.stringify(toProject()));}catch(e){toast('Local backup unavailable: save your project before loading');return false;}
   return true;
@@ -286,6 +289,7 @@ function liveApplyProject(data,raw){
     liveLoading=true;
     fromProject(data); // validates dimensions and every layer before replacing the editor
     liveReceived=raw;livePending=null;liveDirty=false;liveFirst=false;
+    try{localStorage.setItem('canvas-live-clean:'+livePath,JSON.stringify(toProject()));}catch(e){}
     liveSetStatus('AI update applied: '+livePath+' · browser edits stay local');
     toast('New AI sprite is now on your canvas');
   }catch(e){liveSetStatus('AI project was rejected: '+e.message);}
@@ -305,7 +309,7 @@ function livePoll(){
     var data=JSON.parse(raw);
     if(!data||data.format!=='canvas-fakemon'||data.version!==1||data.width!==64||data.height!==64||!Array.isArray(data.layers)||data.layers.length<1||data.layers.length>24)throw Error('Not a valid 64×64 Canvas project');
     // Do not automatically replace pre-existing artwork or browser-side edits.
-    if(liveDirty||(liveFirst&&liveHasArt())){
+    if(liveDirty||(liveFirst&&liveHasArt()&&!liveCleanSnapshot())){
       livePending={data:data,raw:raw};
       liveReceived=raw;
       liveSetStatus('New AI version available. Select Load update to replace local artwork (with a backup).');
