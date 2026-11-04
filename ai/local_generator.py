@@ -32,16 +32,29 @@ _queue_gate = threading.Lock()
 _cache = {}
 
 
+def hardware_backend(torch_module) -> str:
+    """Choose the accelerator available to *this* visitor's machine."""
+    if torch_module.cuda.is_available():
+        return "cuda"
+    if hasattr(torch_module.backends, "mps") and torch_module.backends.mps.is_available():
+        return "mps"
+    return "cpu"
+
+
 def capabilities() -> dict:
     try:
+        import importlib.util
         import torch
-        gpu = torch.cuda.is_available()
-        device = torch.cuda.get_device_name(0) if gpu else "CPU"
+        backend = hardware_backend(torch)
+        device = (torch.cuda.get_device_name(0) if backend == "cuda"
+                  else "Apple Silicon MPS" if backend == "mps" else "CPU")
         return {"installed": True, "torch": torch.__version__,
-                "cuda": gpu, "device": device,
-                "model_available": bool(__import__("importlib.util", fromlist=["find_spec"]).find_spec("diffusers"))}
+                "cuda": backend == "cuda", "backend": backend,
+                "device": device, "cpu_opt_in_required": backend == "cpu",
+                "model_available": importlib.util.find_spec("diffusers") is not None}
     except (ImportError, OSError) as exc:
-        return {"installed": False, "cuda": False, "device": "unavailable",
+        return {"installed": False, "cuda": False, "backend": "unavailable",
+                "device": "unavailable", "cpu_opt_in_required": False,
                 "model_available": False, "detail": str(exc)[:180]}
 
 
@@ -74,8 +87,10 @@ def png_data(img: Image.Image) -> str:
     return "data:image/png;base64," + base64.b64encode(output.getvalue()).decode("ascii")
 
 
-def select_frame(graphics: Path, db_path: Path, entry: dict) -> Image.Image:
+def select_frame(graphics: Path | None, db_path: Path, entry: dict) -> Image.Image:
     import sqlite3
+    if graphics is None:
+        raise ValueError("No sprite library selected on this computer; upload a PNG or use your Canvas drawing")
     ref_id = entry.get("id", "")
     frame = int(entry.get("frame", 0))
     if not isinstance(ref_id, str) or len(ref_id) != 24 or any(c not in "0123456789abcdef" for c in ref_id):
@@ -201,33 +216,44 @@ def spriteize(image: Image.Image, colors: int = 24,
     return palette
 
 
-def load_pipeline(model_key: str, image_to_image: bool):
+def load_pipeline(model_key: str, image_to_image: bool, allow_cpu: bool = False):
     import torch
     from diffusers import AutoPipelineForText2Image, AutoPipelineForImage2Image
     if model_key not in MODEL_IDS:
         raise ValueError("Unsupported local model")
-    if not torch.cuda.is_available() and os.environ.get("CANVAS_ALLOW_CPU_AI") != "1":
-        raise RuntimeError("CUDA GPU not detected; set CANVAS_ALLOW_CPU_AI=1 for very slow CPU inference")
+    backend = hardware_backend(torch)
+    if backend == "cpu" and not (allow_cpu is True or os.environ.get("CANVAS_ALLOW_CPU_AI") == "1"):
+        raise RuntimeError("This computer has no CUDA or Apple MPS GPU. Enable slow CPU mode in AI Studio to try generation.")
     name = MODEL_IDS[model_key]
-    dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+    dtype = torch.float16 if backend == "cuda" else torch.float32
     base = _cache.get(model_key)
     if base is None:
         base = AutoPipelineForText2Image.from_pretrained(name, torch_dtype=dtype, use_safetensors=True)
-        if torch.cuda.is_available():
+        if backend == "cuda":
             base.enable_model_cpu_offload()
+        elif backend == "mps":
+            base.to("mps")
+            base.enable_attention_slicing()
+        else:
+            base.to("cpu")
         _cache[model_key] = base
     if not image_to_image:
         return base
     composite = _cache.get(model_key+":img2img")
     if composite is None:
         composite = AutoPipelineForImage2Image.from_pipe(base)
-        if torch.cuda.is_available():
+        if backend == "cuda":
             composite.enable_model_cpu_offload()
+        elif backend == "mps":
+            composite.to("mps")
+            composite.enable_attention_slicing()
+        else:
+            composite.to("cpu")
         _cache[model_key+":img2img"] = composite
     return composite
 
 
-def make_candidates(job: dict, params: dict, graphics: Path, database: Path):
+def make_candidates(job: dict, params: dict, graphics: Path | None, database: Path):
     import torch
     model_key = params.get("model","sd-turbo")
     prompt = params["prompt"].strip()
@@ -257,7 +283,7 @@ def make_candidates(job: dict, params: dict, graphics: Path, database: Path):
     job["reference_count"] = len(images)
     job["mode"] = "image-to-image" if images else "text-to-image"
     job["status"] = "loading_model"
-    pipeline = load_pipeline(model_key, bool(images))
+    pipeline = load_pipeline(model_key, bool(images), allow_cpu=params.get("allow_cpu") is True)
     job["status"] = "generating"
     guide = 0.0 if model_key=="sd-turbo" else 7.0
     steps = 4 if model_key=="sd-turbo" else 24
@@ -281,13 +307,13 @@ def make_candidates(job: dict, params: dict, graphics: Path, database: Path):
         result.append({"seed":seed+i,"image":png_data(sprite),"width":64,"height":64})
         job["progress"]=int((i+1)*100/count)
     job["candidates"]=result
-    job["device"]="CUDA" if torch.cuda.is_available() else "CPU"
+    job["device"]=hardware_backend(torch).upper()
     job["model_id"]=MODEL_IDS[model_key]
     job["seed"]=seed
     job["status"]="done"
 
 
-def start_job(params: dict, graphics: Path, database: Path) -> dict:
+def start_job(params: dict, graphics: Path | None, database: Path) -> dict:
     if not isinstance(params,dict):
         raise ValueError("Expected request object")
     with _lock:
