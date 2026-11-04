@@ -1,0 +1,8 @@
+# Install on Python 3.11+ (Windows recommended 3.11).
+# Use a CUDA-enabled PyTorch wheel from the appropriate PyTorch index first.
+Pillow>=10,<13
+diffusers>=0.31,<0.40
+transformers>=4.44,<5
+accelerate>=1.0,<3
+safetensors>=0.4
+huggingface-hub>=0.25
