@@ -1,0 +1,16 @@
+# Local AI weights, caches and environments must never go to the public repository
+.venv/
+.venv-ai/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.sqlite
+*.sqlite3
+*.db
+models/
+checkpoints/
+datasets/
+ai/generated/
+ai/cache/
+.env
+.env.*
