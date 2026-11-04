@@ -1,17 +1,38 @@
-# Local AI Studio — working V1 architecture and operating instructions
+# Canvas AI Studio — use the computing power of whoever opens the app
 
-**Purpose:** Generate 64×64 sprite candidates on the user's PC with an optional GPU model, using a text prompt and selected Pokémon/trainer or uploaded references.
+**The local AI is NOT tied to a single developer PC.** Each person runs a private copy on their own device. The static GitHub Pages editor cannot directly launch installed Python or read GPU drivers, so the current implementation provides a **local companion**. This is a genuine generator running on that person's hardware, not a remote AI service.
 
-## Starting on Windows
+## Install on each computer
 
-1. Clone or update `Unborne-Fetus/Canvas` on your PC.
-2. Run `setup_canvas_ai.bat` **once**. It creates an isolated Python 3.11 environment and installs CUDA-enabled PyTorch and Diffusers. A compatible NVIDIA GPU is strongly recommended.
-3. Run `launch_canvas_ai.bat` to index the existing local Pokeemerald Expansion / Brisk Emerald PNGs, serve Canvas at **http://127.0.0.1:8765**, and activate the local AI interface.
-4. Open **References ▦** and choose **Use for AI** on up to five frames from the indexed Pokémon/trainer sheets. You can also add up to four personal PNG references in the AI Studio dialog.
-5. Click **AI Studio ✦**, enter a description and select Generate. Choose the optional **Use current Canvas drawing as the main reference** checkbox to use existing editable artwork as image-to-image initialization.
-6. Select a generated candidate and choose **Add as editable layer**. Your original drawing and layer stack are preserved. You can undo the insertion.
+### Windows
+1. Obtain a copy of Canvas from [the GitHub repository](https://github.com/Unborne-Fetus/Canvas) or its **Canvas AI Local Companion** workflow ZIP artifact (the package contains source and launchers, *not* the model).
+2. Install **Python 3.11 x64** if needed.
+3. Double-click `launch_canvas_ai.bat`. On a fresh device it runs `setup_canvas_ai.bat` automatically, which installs an isolated environment in `.venv-ai`. It checks for an NVIDIA GPU before choosing CUDA PyTorch; other Windows PCs use CPU PyTorch.
+4. Your browser opens **http://127.0.0.1:8765** on **your device**. No paths or model downloads from the original developer's PC are used.
+5. Choose **AI Studio ✦**. The selected model is downloaded into this device's own cache on first generation, with normal license and network requirements.
+6. Optionally enter a local Expansion checkout's path in **References ▦ → Index my sprite folder**. Nothing is required here for text-only or personal PNG generation.
 
-The model is downloaded *only* when a user explicitly clicks Generate. Model downloads can be several gigabytes and depend on network availability and model license/access. Models stay in your own cache, **not Git**.
+### macOS and Linux
+1. Install Python 3.11 with `venv` support.
+2. In your Canvas copy run `bash setup_canvas_ai.sh`, then `bash launch_canvas_ai.sh` (or `bash launch_canvas_ai.sh /path/to/your/expansion`).
+3. The runtime detects CUDA, Apple MPS where available, or CPU. Apple MPS has code support but has not been validated on a Mac; Linux GPU wheel/driver compatibility varies.
+4. Use `http://127.0.0.1:8765` in your browser. Backend remains bound to your own loopback address, not the developer's computer.
+
+**No Pokémon asset collection? No problem.** Prompt-only generation, up to four user-uploaded PNGs, and image-to-image from current Canvas art work without an indexed sprite directory. Adding a repository is optional and local to that user's device.
+
+**CPU-only users:** select **Allow slow CPU generation** when prompted, understanding that large diffusion models may require substantial RAM and take much longer. A device does not necessarily meet the model's memory requirements just because the UI can launch.
+
+### What the hosted website can and cannot do
+- Public GitHub Pages: drawing and editable `.canvas.json` projects. No silent installation, no direct local filesystem access, no automatic GPU diffusion inference.
+- Private per-device companion: serves the editor *and* model API on the same localhost origin. This avoids HTTPS-to-loopback private-network restrictions and doesn't require a central AI server.
+- Future browser-only WebGPU mode would need a separate WebGPU-compatible model and memory/performance testing; this **is not implemented**.
+
+## Generate a sprite
+1. Open **References ▦**, optionally select up to five frames with **Use for AI**, and/or choose up to four personal PNG references in AI Studio.
+2. Open **AI Studio ✦**, describe the creature. Optionally select **Use current Canvas drawing** to guide the model.
+3. Generate on **this device** and select **Add as editable layer**. It does not overwrite other layers.
+
+Model weights, reference files, and private uploads are never committed to GitHub. Artwork remains with its original owners; using an indexed PNG as a reference does not automatically grant rights to redistribute or train on it.
 
 ## Modes and limitations
 
