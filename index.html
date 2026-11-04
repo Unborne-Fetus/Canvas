@@ -276,8 +276,13 @@ function liveSetStatus(message){
 function liveHasArt(){
   return layers.some(function(l){for(var i=3;i<l.pixels.length;i+=4){if(l.pixels[i])return true;}return false;});
 }
+function liveFingerprint(){
+  var p=toProject();
+  return JSON.stringify({name:p.name,primary:p.primary,secondary:p.secondary,palette:p.palette,
+    layers:p.layers.map(function(l){return{name:l.name,visible:l.visible,opacity:l.opacity,pixels:l.pixels};})});
+}
 function liveCleanSnapshot(){
-  try{return localStorage.getItem('canvas-live-clean:'+livePath)===JSON.stringify(toProject());}catch(e){return false;}
+  try{return localStorage.getItem('canvas-live-clean:'+livePath)===liveFingerprint();}catch(e){return false;}
 }
 function liveBackup(){
   try{localStorage.setItem('canvas-live-backup:'+livePath,JSON.stringify(toProject()));}catch(e){toast('Local backup unavailable: save your project before loading');return false;}
@@ -289,7 +294,7 @@ function liveApplyProject(data,raw){
     liveLoading=true;
     fromProject(data); // validates dimensions and every layer before replacing the editor
     liveReceived=raw;livePending=null;liveDirty=false;liveFirst=false;
-    try{localStorage.setItem('canvas-live-clean:'+livePath,JSON.stringify(toProject()));}catch(e){}
+    try{localStorage.setItem('canvas-live-clean:'+livePath,liveFingerprint());}catch(e){}
     liveSetStatus('AI update applied: '+livePath+' · browser edits stay local');
     toast('New AI sprite is now on your canvas');
   }catch(e){liveSetStatus('AI project was rejected: '+e.message);}
