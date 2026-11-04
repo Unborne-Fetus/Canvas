@@ -33,6 +33,19 @@
 .ref-buttons{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
 .ref-buttons button{font-size:11px;padding:4px 6px;min-width:26px}
 .refs-footer{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding-top:12px}
+
+/* AI Studio: optional same-origin GPU-backed local generator */
+.ai-dialog{width:min(880px,96vw);max-width:none;max-height:90vh;padding:18px;overflow:auto}
+.ai-dialog h2{margin:0 0 6px}.ai-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin:12px 0}
+.ai-form label{display:grid;gap:5px;font-size:12px;color:var(--muted)}
+.ai-form input,.ai-form select,.ai-dialog textarea{background:var(--field);color:var(--text);padding:9px;border:1px solid var(--border);border-radius:8px;width:100%}
+.ai-dialog textarea{min-height:90px;resize:vertical}
+.ai-dialog .ai-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin:10px 0}
+.ai-selected{font-size:12px;color:var(--muted);white-space:pre-wrap}
+.ai-result-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:12px;margin-top:12px}
+.ai-result{display:grid;gap:9px;padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--panel2)}
+.ai-result img{width:128px;height:128px;max-width:100%;margin:auto;image-rendering:pixelated;object-fit:contain}
+.ai-result .btn{padding:8px;font-size:12px}
 </style>
 </head>
 <body>
@@ -46,6 +59,7 @@
     <button class="btn ghost" id="saveBtn" title="Save editable project (Ctrl+S)">Save project</button>
     <button class="btn ghost" id="aiBtn" title="Connect Canvas to a GitHub-backed live AI sprite">AI Live ✦</button>
     <button class="btn ghost" id="refsBtn" title="Browse local Pokémon and trainer sprite reference library">References <span aria-hidden="true">▦</span></button>
+    <button class="btn ghost" id="aiStudioBtn" title="Generate sprites on this computer using selected references">AI Studio ✦</button>
     <button class="btn primary" id="exportBtn" title="Export 64×64 PNG">Export PNG ↗</button>
   </div>
 </header>
@@ -116,6 +130,29 @@
   <p class="hint" id="refsStatus" role="status">Connect the local reference library to browse imported sheets.</p>
   <div class="refs-grid" id="refsGrid"></div>
   <div class="refs-footer"><button class="btn small" id="refsPrev">← Previous</button><span class="small-label" id="refsPage">Page 1</span><button class="btn small" id="refsNext">Next →</button></div>
+</dialog>
+<dialog class="ai-dialog" id="aiStudioDialog" aria-label="Local AI Studio">
+  <div class="refs-head"><div><h2>AI Studio · Local GPU generation</h2>
+    <p class="hint">Reference-guided inference on your PC. References are not used to train model weights. First use downloads a model.</p></div>
+    <button class="btn" id="aiStudioClose">Close</button></div>
+  <label for="aiPrompt" class="small-label">Describe your creature or sprite edit</label>
+  <textarea id="aiPrompt" maxlength="1200" placeholder="A fast aerodynamic Mega Scizor Y with longer pincers and razor-like wings">A fast, aerodynamic Mega Evolution of Scizor with longer pincers and razor-like wings, 64x64 pixel art creature sprite</textarea>
+  <div class="ai-form">
+    <label>Local model<select id="aiModel"><option value="sd-turbo">SD-Turbo · fast GPU</option><option value="sd15">Stable Diffusion 1.5 · more steps</option></select></label>
+    <label>Variations<select id="aiCount"><option value="1">1</option><option value="2">2</option><option value="4">4</option></select></label>
+    <label>Seed (blank=random)<input id="aiSeed" type="number" min="0" max="4294967295" placeholder="Random"></label>
+    <label>Reference influence (0.3–1)<input id="aiStrength" type="number" min=".3" max="1" step=".05" value=".65"></label>
+    <label>Color palette size<select id="aiColors"><option value="16">16</option><option value="24" selected>24</option><option value="32">32</option></select></label>
+    <label>Upload personal reference PNGs<input id="aiUploads" type="file" accept="image/png" multiple></label>
+  </div>
+  <label><input id="aiUseCurrent" type="checkbox"> Use current Canvas drawing as the main reference</label>
+  <p id="aiRefStatus" class="ai-selected">Selected references: none. In References ▦ choose “Use for AI”.</p>
+  <div class="ai-actions">
+    <button class="btn" id="aiClearRefs">Clear selected references</button>
+    <button class="btn primary" id="aiGenerate">Generate on my PC</button>
+  </div>
+  <p id="aiProgress" class="hint" role="status">Checking local AI service…</p>
+  <div class="ai-result-list" id="aiResults"></div>
 </dialog>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <script>
@@ -333,7 +370,10 @@ function refsCard(entry){
   img.onload=redraw;
   img.onerror=function(){summary.textContent+=' · image unavailable';add.disabled=true;};
   img.src='/api/v1/references/'+entry.id+'/image';
-  buttons.append(backwards,current,next,add);card.append(buttons);
+  var aiSelect=refElement('button','btn small','Use for AI');
+  aiSelect.type='button';
+  aiSelect.addEventListener('click',function(){aiChooseReference(entry,frame);});
+  buttons.append(backwards,current,next,add,aiSelect);card.append(buttons);
   return card;
 }
 function refsLoad(){
@@ -362,6 +402,113 @@ function refsLoad(){
     el('refsPrev').disabled=el('refsNext').disabled=true;
   });
 }
+
+/* AI Studio talks only to the same-origin localhost companion, not a paid cloud API. */
+var aiChosen=[],aiBusy=false,aiLastJob='';
+function aiRefsUpdate(){
+  el('aiRefStatus').textContent='Selected references ('+aiChosen.length+'/5): '+
+    (aiChosen.length?aiChosen.map(function(x){return x.label+' ['+x.kind+' #'+(x.frame+1)+']';}).join(' · '):'none. Choose Use for AI in References.');
+}
+function aiChooseReference(entry,frame){
+  var chosen={id:entry.id,frame:frame,label:entry.label,kind:entry.kind};
+  if(aiChosen.some(function(a){return a.id===chosen.id&&a.frame===chosen.frame;})){toast('Reference already selected');return;}
+  if(aiChosen.length>=5){toast('Select at most 5 references');return;}
+  aiChosen.push(chosen);aiRefsUpdate();
+  toast('Selected '+chosen.label+' for local AI guidance');
+}
+function aiSetStatus(msg){el('aiProgress').textContent=msg;}
+function aiReadUpload(file){
+  return new Promise(function(resolve,reject){
+    if(file.type!=='image/png'||file.size>2000000){reject(Error('Upload only PNGs under 2MB'));return;}
+    var reader=new FileReader();
+    reader.onerror=function(){reject(Error('File could not be read'));};
+    reader.onload=function(){resolve(reader.result);};
+    reader.readAsDataURL(file);
+  });
+}
+function aiAddResult(url,seed){
+  if(layers.length>=MAX_LAYERS){toast('24-layer limit reached');return;}
+  var img=new Image();
+  img.onload=function(){
+    try{
+      var canvas=document.createElement('canvas');canvas.width=SIZE;canvas.height=SIZE;
+      var g=canvas.getContext('2d',{willReadFrequently:true});g.imageSmoothingEnabled=false;
+      g.clearRect(0,0,SIZE,SIZE);g.drawImage(img,0,0,SIZE,SIZE);
+      var px=g.getImageData(0,0,SIZE,SIZE).data;
+      modify(function(){var l=newLayer('AI candidate · seed '+seed,px);layers.push(l);activeId=l.id;});
+      toast('AI result inserted as editable layer');
+    }catch(e){toast('Could not add AI layer: '+e.message);}
+  };
+  img.onerror=function(){toast('Generated image was unreadable');};
+  img.src=url;
+}
+function aiDisplayResults(job){
+  var list=el('aiResults');list.replaceChildren();
+  (job.candidates||[]).forEach(function(result){
+    var card=refElement('div','ai-result');
+    var img=refElement('img');img.alt='Generated pixel art candidate';img.src=result.image;
+    var seed=refElement('div','ref-meta','Seed '+result.seed+' · 64×64 PNG');
+    var btn=refElement('button','btn primary','Add as editable layer');btn.type='button';
+    btn.addEventListener('click',function(){aiAddResult(result.image,result.seed);});
+    card.append(img,seed,btn);list.append(card);
+  });
+}
+function aiPollJob(id){
+  if(id!==aiLastJob)return;
+  fetch('/api/v1/generations/'+id,{cache:'no-store'}).then(function(r){if(!r.ok)throw Error('Job status unavailable');return r.json();}).then(function(job){
+    if(id!==aiLastJob)return;
+    if(job.status==='done'){
+      aiBusy=false;el('aiGenerate').disabled=false;
+      aiSetStatus('Finished locally on '+job.device+' · '+job.model_id+' · '+job.reference_count+' reference(s).');
+      aiDisplayResults(job);
+    }else if(job.status==='error'){
+      aiBusy=false;el('aiGenerate').disabled=false;
+      aiSetStatus('Generation failed: '+(job.error||'Unknown error'));
+    }else{
+      aiSetStatus('Local AI: '+job.status+' · '+(job.progress||0)+'% (initial model download may require several GB)');
+      setTimeout(function(){aiPollJob(id);},1500);
+    }
+  }).catch(function(e){aiBusy=false;el('aiGenerate').disabled=false;aiSetStatus(e.message);});
+}
+function aiHealth(){
+  fetch('/api/v1/models',{cache:'no-store'}).then(function(r){if(!r.ok)throw Error('offline');return r.json();}).then(function(r){
+    if(!r.device.installed)aiSetStatus('Local AI dependencies not installed. Run setup_canvas_ai.bat first.');
+    else if(!r.device.cuda)aiSetStatus('PyTorch installed but CUDA GPU unavailable. Configure NVIDIA CUDA before generating.');
+    else if(!r.device.model_available)aiSetStatus('Diffusers not installed; rerun local AI setup.');
+    else aiSetStatus('Ready: '+r.device.device+' · selected model downloads on first Generate.');
+  }).catch(function(){aiSetStatus('Open Canvas at http://127.0.0.1:8765 using the local launcher to generate.');});
+}
+function aiGenerate(){
+  if(aiBusy)return;
+  var prompt=el('aiPrompt').value.trim();
+  if(prompt.length<3){aiSetStatus('Enter a sprite description.');return;}
+  var uploads=Array.from(el('aiUploads').files);
+  if(uploads.length>4){aiSetStatus('Use up to 4 upload images.');return;}
+  aiBusy=true;el('aiGenerate').disabled=true;
+  el('aiResults').replaceChildren();
+  aiSetStatus('Preparing private references…');
+  Promise.all(uploads.map(aiReadUpload)).then(function(data){
+    var base=null;
+    if(el('aiUseCurrent').checked){
+      var composed=document.createElement('canvas');composed.width=SIZE;composed.height=SIZE;
+      compose(composed.getContext('2d'));
+      base=composed.toDataURL('image/png');
+    }
+    var rawSeed=el('aiSeed').value;
+    return fetch('/api/v1/generations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      prompt:prompt,model:el('aiModel').value,count:Number(el('aiCount').value),
+      strength:Number(el('aiStrength').value),colors:Number(el('aiColors').value),
+      seed:rawSeed===''?null:Number(rawSeed),
+      base_image:base,user_images:data,reference_ids:aiChosen.map(function(x){return{id:x.id,frame:x.frame};})
+    })});
+  }).then(function(r){return r.json().then(function(data){if(!r.ok)throw Error(data.error||'Local generator is unavailable');return data;});})
+  .then(function(data){aiLastJob=data.id;aiPollJob(data.id);})
+  .catch(function(e){aiBusy=false;el('aiGenerate').disabled=false;aiSetStatus('Could not start: '+e.message);});
+}
+attach('aiStudioBtn','click',function(){el('aiStudioDialog').showModal();aiRefsUpdate();aiHealth();});
+attach('aiStudioClose','click',function(){el('aiStudioDialog').close();});
+attach('aiClearRefs','click',function(){aiChosen=[];aiRefsUpdate();});
+attach('aiGenerate','click',aiGenerate);
 attach('refsBtn','click',function(){el('refsDialog').showModal();refsOffset=0;refsLoad();});
 attach('refsClose','click',function(){el('refsDialog').close();refsReq++;});
 attach('refsReload','click',refsLoad);
