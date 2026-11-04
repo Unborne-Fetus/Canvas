@@ -26,6 +26,7 @@ with tempfile.TemporaryDirectory() as temporary:
         conn.execute("CREATE TABLE sprites(id TEXT, relpath TEXT, frame_width INTEGER, frame_height INTEGER, frame_count INTEGER, width INTEGER,height INTEGER)")
         conn.execute("INSERT INTO sprites VALUES(?,?,?,?,?,?,?)",
                      ("a"*24, "pokemon/scizor/anim_front.png", 64, 64, 2, 64, 128))
+        conn.commit()
     img = g.select_frame(graphics, db, {"id": "a"*24, "frame": 1})
     assert img.getpixel((25, 15))[:3] == (5, 80, 190)
     assert img.size == (64, 64)
