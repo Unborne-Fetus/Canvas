@@ -23,11 +23,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Install lightweight image test dependency
+        run: python -m pip install 'Pillow>=10,<13'
       - name: Verify site and AI Studio contracts
         run: |
           node tests/smoke.mjs
           node tests/ai-contracts.mjs
           python tests/reference-library-smoke.py
+          python tests/local-generator-smoke.py
       - name: Prepare static site
         run: |
           mkdir -p _site
