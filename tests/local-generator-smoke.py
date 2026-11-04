@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Fast reference-guided inference data-path smoke test, no torch or model download."""
 import base64
+from contextlib import closing
 import io
 import sqlite3
 import sys
@@ -21,7 +22,7 @@ with tempfile.TemporaryDirectory() as temporary:
     canvas.paste((5, 80, 190, 255), (20, 74, 42, 100))
     canvas.save(source)
     db = directory / "refs.sqlite3"
-    with sqlite3.connect(db) as conn:
+    with closing(sqlite3.connect(db)) as conn:
         conn.execute("CREATE TABLE sprites(id TEXT, relpath TEXT, frame_width INTEGER, frame_height INTEGER, frame_count INTEGER, width INTEGER,height INTEGER)")
         conn.execute("INSERT INTO sprites VALUES(?,?,?,?,?,?,?)",
                      ("a"*24, "pokemon/scizor/anim_front.png", 64, 64, 2, 64, 128))
