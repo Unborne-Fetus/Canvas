@@ -242,20 +242,32 @@ def serve(db_path: Path, site: Path, host: str, port: int) -> None:
                     and fetch_site not in ("cross-site", "same-site"))
 
         def do_POST(self) -> None:
+            nonlocal graphics, allowed
             if not self.valid_origin():
                 return self.send_json({"error":"Local origin required"},403)
-            if self.path != "/api/v1/generations":
+            if self.path not in ("/api/v1/generations", "/api/v1/references/scan"):
                 return self.send_json({"error":"Not found"},404)
             try:
                 size = int(self.headers.get("Content-Length","0"))
             except ValueError:
                 return self.send_json({"error":"Invalid Content-Length"},400)
-            if size < 2 or size > 15_000_000:
-                return self.send_json({"error":"Request must be 2 bytes to 15MB"},413)
+            maximum = 4096 if self.path.endswith("/scan") else 15_000_000
+            if size < 2 or size > maximum:
+                return self.send_json({"error":"Request size is invalid"},413)
             try:
                 params = json.loads(self.rfile.read(size))
+                if self.path.endswith("/scan"):
+                    if not isinstance(params, dict):
+                        raise ValueError("Expected source directory object")
+                    source = params.get("source")
+                    if not isinstance(source, str) or not 1 <= len(source.strip()) <= 1024:
+                        raise ValueError("Provide the path to your own Pokeemerald Expansion repository")
+                    summary = scan(Path(source.strip()), db_path)
+                    graphics = Path(summary["source"]).resolve()
+                    allowed = (graphics / "pokemon", graphics / "trainers")
+                    return self.send_json(summary)
                 data = ai_start_job(params, graphics, db_path)
-            except (ValueError,TypeError,json.JSONDecodeError) as error:
+            except (ValueError, TypeError, FileNotFoundError, OSError, json.JSONDecodeError) as error:
                 return self.send_json({"error":str(error)[:240]},400)
             return self.send_json(data,202)
 
@@ -277,6 +289,7 @@ def serve(db_path: Path, site: Path, host: str, port: int) -> None:
                                               params.get("q", [""])[0], off, limit))
             if path in ("/api/v1/stats", "/api/v1/health"):
                 result = statistics(db_path)
+                result["source_connected"] = graphics is not None
                 if path.endswith("/health"):
                     result["ai"] = ai_capabilities()
                 return self.send_json(result)
